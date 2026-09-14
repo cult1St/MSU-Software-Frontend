@@ -46,6 +46,7 @@ function mapPrescriptions(
       .filter(Boolean)
       .join(" · ") || "Pending details",
     encounterId: row.encounterId,
+    isUrgentStat: Boolean(row.isUrgent),
   }));
 }
 
@@ -155,8 +156,13 @@ export default function PharmacyAndLabPage() {
           await encountersService.updateStatus(encounterId, {
             status: "AwaitingHandover",
           });
-        } catch {
-          // Status patch may 500; drugs are still dispensed.
+        } catch (statusError) {
+          toast.warn(
+            getApiErrorMessage(
+              statusError,
+              "Dispensed, but could not mark AwaitingHandover"
+            )
+          );
         }
       }
       setSelectedRx("");
@@ -257,12 +263,12 @@ export default function PharmacyAndLabPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-              Pharmacy & Lab
+              Pharmacy & Lab Management
             </h1>
             <p className="text-xs text-gray-500 font-medium mt-0.5">
               {isLoading
                 ? "Loading live queues..."
-                : "After consultation: dispense drugs, then protocol confirms and counsels before handover"}
+                : "Session Active: Unit 04-B · Dispense, then protocol handover"}
             </p>
           </div>
           <div className="flex gap-2">
@@ -276,6 +282,13 @@ export default function PharmacyAndLabPage() {
               type="button"
               onClick={() => void load()}
               className="px-4 py-2 bg-white border border-gray-300 font-semibold text-gray-700 hover:bg-gray-50 rounded-sm text-xs"
+            >
+              Print Queue Report
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="px-4 py-2 bg-[#B71C1C] text-white font-semibold hover:bg-[#991B1B] rounded-sm text-xs"
             >
               Refresh Board
             </button>

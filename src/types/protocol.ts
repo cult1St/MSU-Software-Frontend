@@ -8,6 +8,7 @@ export interface RegistrationFormData {
   sex: string;
   phone: string;
   address: string;
+  identificationId?: string;
   nextOfKinName: string;
   nextOfKinPhone: string;
   nextOfKinRelationship: string;

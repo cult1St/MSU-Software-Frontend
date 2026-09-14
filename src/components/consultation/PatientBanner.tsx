@@ -101,9 +101,25 @@ export default function PatientBanner({
 
       <div className="lg:col-span-1 bg-[#2D3134] p-3 rounded-sm flex flex-col justify-between gap-2 shadow-2xs">
         <span className="text-[10px] font-black tracking-wider uppercase text-gray-400 px-1">
-          Dressing & Referral
+          Emergency & Referral
         </span>
         <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() =>
+              onReferralChange?.({
+                ...flags,
+                requiresDressing: true,
+                dressingInstructions: flags.dressingInstructions || "Injection",
+              })
+            }
+            className="w-full bg-[#D32F2F] hover:bg-[#B71C1C] text-white text-xs font-bold py-2 px-3 rounded-sm flex items-center justify-between transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Pill size={14} /> Refer to Injection
+            </span>
+            <span>→</span>
+          </button>
           <button
             type="button"
             onClick={toggleDressing}
@@ -114,7 +130,7 @@ export default function PatientBanner({
             }`}
           >
             <span className="flex items-center gap-2">
-              <Activity size={14} /> {flags.requiresDressing ? "Dressing ordered" : "Refer to Dressing"}
+              <Activity size={14} /> Refer to Dressing
             </span>
             <span>→</span>
           </button>

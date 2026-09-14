@@ -1,37 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState, ChangeEvent } from "react";
-import {
-  Stethoscope,
-  ClipboardList,
-  Clock3,
-  UserRound,
-  RefreshCw,
-} from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "react-toastify";
 import { PageHeader } from "@src/components/ui/page-header";
 import { Button } from "@src/components/ui/button";
-import { KpiCard } from "@src/components/ui/kpi-card";
-import { Card, CardHeader, CardTitle, CardFooter } from "@src/components/ui/card";
 import { Badge } from "@src/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@src/components/ui/table";
 import PatientBanner from "@src/components/consultation/PatientBanner";
 import ConsultationWorkspace from "@src/components/consultation/ConsultationWorkspace";
+import VitalTelemetry from "@src/components/consultation/VitalTelemetry";
 import type { Encounter, EncounterVitals, LabTestPlanDTO } from "@src/dto/encounter";
 import type { LabResult } from "@src/dto/lab";
 import type { ServiceWindow } from "@src/dto/operations";
 import type {
   DiagnosticOrders,
   MedicationPrescription,
+  PatientHeaderInfo,
   ReferralFlags,
   SoapNotes,
+  VitalMetrics,
 } from "@src/types/consultation";
 import encountersService from "@src/services/encounters.service";
 import labService from "@src/services/lab.service";
@@ -65,10 +52,24 @@ function mergeEncounters(lists: Encounter[][]) {
   return Array.from(map.values());
 }
 
+function vitalsToMetrics(v: EncounterVitals | null): VitalMetrics {
+  return {
+    bloodPressureSystolic: v?.bloodPressureSystolic ?? "",
+    bloodPressureDiastolic: v?.bloodPressureDiastolic ?? "",
+    pulseRate: v?.pulseRate ?? "",
+    temperatureCelsius: v?.temperature ?? "",
+    weightKg: v?.weight ?? "",
+    spo2: v?.spo2 ?? "",
+    respiratoryRate: v?.respiratoryRate ?? "",
+    notes: v?.notes || "",
+  };
+}
+
 export default function DoctorsPage() {
   const [emergencyBoard, setEmergencyBoard] = useState<Encounter[]>([]);
   const [coldBoard, setColdBoard] = useState<Encounter[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [patientHeader, setPatientHeader] = useState<PatientHeaderInfo | null>(null);
   const [vitals, setVitals] = useState<EncounterVitals | null>(null);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
@@ -124,14 +125,35 @@ export default function DoctorsPage() {
   const openEncounter = async (encounterId: string) => {
     setSelectedId(encounterId);
     try {
-      const [detail, consultation, latestVitals, results] = await Promise.all([
-        encountersService.getById(encounterId).catch(() => null),
-        encountersService.getConsultation(encounterId).catch(() => null),
-        encountersService.getLatestVitals(encounterId).catch(() => null),
-        labService.getEncounterLabResults(encounterId).catch(() => []),
-      ]);
-      setVitals(latestVitals);
-      setLabResults(results || []);
+      const chart = await encountersService.getChart(encounterId);
+      const detail = chart.encounter;
+      const person = chart.patient;
+      const consultation =
+        chart.consultation ||
+        (await encountersService.getConsultation(encounterId).catch(() => null));
+      const latestVitals =
+        (chart.vitals && chart.vitals[chart.vitals.length - 1]) ||
+        (await encountersService.getLatestVitals(encounterId).catch(() => null));
+      const results =
+        (chart.labResults as LabResult[] | undefined) ||
+        (await labService.getEncounterLabResults(encounterId).catch(() => [])) ||
+        [];
+
+      setVitals(latestVitals || null);
+      setLabResults(results);
+      setPatientHeader({
+        id: detail.patientId || encounterId.slice(0, 8),
+        name: person?.fullName || detail.patientName || detail.fullName || "Patient",
+        dob: "—",
+        age: person?.age || 0,
+        gender:
+          person?.sex === "M" ? "Male" : person?.sex === "F" ? "Female" : "Other",
+        bloodType: "—",
+        phone: person?.phone || "—",
+        lastVisit: detail.createdAt
+          ? new Date(detail.createdAt).toLocaleDateString()
+          : "—",
+      });
       setSoapNotes({
         subjective: consultation?.clinicalNotes || detail?.chiefComplaint || "",
         objective: "",
@@ -149,12 +171,22 @@ export default function DoctorsPage() {
           instructions: rx.instructions || "",
         }))
       );
+      if (!(consultation?.treatmentPlan?.prescriptions || []).length) {
+        setPrescriptions([]);
+      }
       setReferral({
         requiresDressing: Boolean(consultation?.treatmentPlan?.requiresDressing),
         dressingInstructions: consultation?.treatmentPlan?.dressingInstructions || "",
         isReferral: Boolean(consultation?.treatmentPlan?.isReferral),
         referralFacility: consultation?.treatmentPlan?.referralFacility || "",
         referralReason: consultation?.treatmentPlan?.referralReason || "",
+      });
+      setDiagnostics({
+        cbc: false,
+        lipidProfile: false,
+        ecg12Lead: false,
+        kft: false,
+        additionalInstructions: "",
       });
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to load encounter"));
@@ -165,11 +197,11 @@ export default function DoctorsPage() {
     emergencyBoard.find((row) => row.id === selectedId) ||
     coldBoard.find((row) => row.id === selectedId);
   const selectedIsEmergency = selected ? isEmergencyEncounter(selected) : false;
-  const canConsult = Boolean(selected) && (selectedIsEmergency || windowOpen);
+  const canConsult = Boolean(selectedId) && (selectedIsEmergency || windowOpen);
 
   const handleFinalize = async () => {
     if (!selectedId) {
-      toast.error("Select an encounter first");
+      toast.error("Select a patient first");
       return;
     }
     if (!canConsult) {
@@ -239,11 +271,18 @@ export default function DoctorsPage() {
         } else if (referral.requiresDressing) {
           await encountersService.updateStatus(selectedId, { status: "DressingPending" });
         }
-      } catch {
-        // Status patch may 500; consultation still posted.
+      } catch (statusError) {
+        toast.warn(
+          getApiErrorMessage(
+            statusError,
+            "Consultation saved, but the next-step status could not be updated"
+          )
+        );
       }
 
-      toast.success("Consultation submitted. Pharmacy is next if drugs were ordered.");
+      toast.success("Consultation finalized. Pharmacy is next if drugs were ordered.");
+      setSelectedId("");
+      setPatientHeader(null);
       void load();
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to save consultation"));
@@ -265,153 +304,91 @@ export default function DoctorsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard
-          label="Emergency ward"
-          value={isLoading ? "—" : String(emergencyBoard.length).padStart(2, "0")}
-          hint="Seen immediately"
-          icon={ClipboardList}
-          accent
-        />
-        <KpiCard
-          label="Cold-case board"
-          value={isLoading ? "—" : String(coldBoard.length).padStart(2, "0")}
-          hint={windowOpen ? "Window open" : "Window closed"}
-          icon={Stethoscope}
-        />
-        <KpiCard
-          label="Lab results"
-          value={String(labResults.length).padStart(2, "0")}
-          hint="Selected encounter"
-          icon={Clock3}
-        />
-        <KpiCard
-          label="Latest BP"
-          value={
-            vitals
-              ? `${vitals.bloodPressureSystolic ?? "—"}/${vitals.bloodPressureDiastolic ?? "—"}`
-              : "—"
-          }
-          hint="Nurses chart"
-          icon={UserRound}
-        />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-200 rounded-sm p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wide">
+              Emergency ward
+            </h3>
+            <Badge variant="live">{emergencyBoard.length}</Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {isLoading && <span className="text-xs text-gray-400">Loading…</span>}
+            {!isLoading && emergencyBoard.length === 0 && (
+              <span className="text-xs text-gray-400">No emergencies</span>
+            )}
+            {emergencyBoard.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => void openEncounter(row.id)}
+                className={`text-left text-xs px-2.5 py-1.5 rounded-sm border ${
+                  selectedId === row.id
+                    ? "border-[#C62828] bg-red-50 text-[#C62828] font-bold"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {row.patientName || row.fullName || row.id.slice(0, 8)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-sm p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wide">
+              Cold-case queue
+            </h3>
+            <Badge variant={windowOpen ? "live" : "priority"}>
+              {windowOpen ? "OPEN" : "CLOSED"}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!isLoading && coldBoard.length === 0 && (
+              <span className="text-xs text-gray-400">No cold cases waiting</span>
+            )}
+            {coldBoard.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                disabled={!windowOpen}
+                onClick={() => void openEncounter(row.id)}
+                className={`text-left text-xs px-2.5 py-1.5 rounded-sm border disabled:opacity-40 ${
+                  selectedId === row.id
+                    ? "border-[#C62828] bg-red-50 text-[#C62828] font-bold"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {row.patientName || row.fullName || row.id.slice(0, 8)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>Emergency — any time</CardTitle>
-            <Badge variant="live">WARD</Badge>
-          </CardHeader>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-0">
-                <TableHead>Patient</TableHead>
-                <TableHead>Complaint</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {emergencyBoard.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4}>No emergency encounters.</TableCell>
-                </TableRow>
-              )}
-              {emergencyBoard.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.patientName || row.fullName || row.id.slice(0, 8)}</TableCell>
-                  <TableCell>{row.chiefComplaint || "—"}</TableCell>
-                  <TableCell>{row.status || "—"}</TableCell>
-                  <TableCell>
-                    <Button size="xs" onClick={() => void openEncounter(row.id)}>
-                      See now
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>Cold cases — service window</CardTitle>
-            <Badge variant={windowOpen ? "live" : "priority"}>{windowOpen ? "OPEN" : "CLOSED"}</Badge>
-          </CardHeader>
-          {!windowOpen && (
-            <p className="px-4 py-2 text-xs text-amber-800 bg-amber-50 border-b border-amber-100">
-              Cold-case consultation starts after 1st service and ends at the last sermon. Emergencies continue.
-            </p>
-          )}
-          <Table>
-            <TableHeader>
-              <TableRow className="border-0">
-                <TableHead>Patient</TableHead>
-                <TableHead>Complaint</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {coldBoard.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4}>No cold-case patients waiting.</TableCell>
-                </TableRow>
-              )}
-              {coldBoard.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.patientName || row.fullName || row.id.slice(0, 8)}</TableCell>
-                  <TableCell>{row.chiefComplaint || "—"}</TableCell>
-                  <TableCell>{row.status || "—"}</TableCell>
-                  <TableCell>
-                    <Button
-                      size="xs"
-                      disabled={!windowOpen}
-                      onClick={() => void openEncounter(row.id)}
-                    >
-                      Consult
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <CardFooter>
-            <span>Queued and InConsultation only</span>
-          </CardFooter>
-        </Card>
-      </div>
+      {!selectedId && (
+        <div className="bg-white border border-dashed border-gray-300 rounded-sm p-10 text-center text-sm text-gray-400">
+          Select an emergency or cold-case patient to open the consultation canvas.
+        </div>
+      )}
 
       {selectedId && (
         <div className="space-y-4">
           <PatientBanner
-            patient={{
-              id: selected?.patientId || selectedId,
-              name: selected?.patientName || selected?.fullName || "Patient",
-              dob: "—",
-              age: 0,
-              gender: "Other",
-              bloodType: "—",
-              phone: "—",
-              lastVisit: selected?.createdAt
-                ? new Date(selected.createdAt).toLocaleDateString()
-                : "—",
-            }}
+            patient={patientHeader || undefined}
             referral={referral}
             onReferralChange={setReferral}
           />
-          {vitals && (
-            <p className="text-xs text-surface-muted">
-              Vitals: BP {vitals.bloodPressureSystolic ?? "—"}/{vitals.bloodPressureDiastolic ?? "—"} · Temp{" "}
-              {vitals.temperature ?? "—"} · SpO2 {vitals.spo2 ?? "—"}
-            </p>
-          )}
+
+          <VitalTelemetry vitals={vitalsToMetrics(vitals)} />
+
           {labResults.length > 0 && (
-            <p className="text-xs text-surface-muted">
-              Lab: {labResults.map((r) => r.testName || r.conclusion || "result").join(", ")}
+            <p className="text-xs text-surface-muted px-1">
+              Lab on file:{" "}
+              {labResults.map((r) => r.testName || r.conclusion || "result").join(", ")}
             </p>
           )}
+
           <ConsultationWorkspace
             soapNotes={soapNotes}
             onSoapNotesChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
@@ -451,14 +428,33 @@ export default function DoctorsPage() {
               }))
             }
           />
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={isSubmitting || !canConsult}
-              onClick={() => void handleFinalize()}
-            >
-              {isSubmitting ? "Submitting..." : "Finalize consultation"}
-            </Button>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-gray-200 pt-4">
+            <p className="text-[11px] text-gray-400">
+              {selectedIsEmergency
+                ? "Emergency consult — window not required"
+                : windowOpen
+                  ? "Cold-case window open"
+                  : "Cold-case window closed"}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => toast.info("Draft kept on this screen only (not sent).")}
+              >
+                Save Draft
+              </Button>
+              <Button
+                size="sm"
+                disabled={isSubmitting || !canConsult}
+                onClick={() => void handleFinalize()}
+                className="bg-[#B71C1C] hover:bg-[#991B1B]"
+              >
+                {isSubmitting ? "Submitting..." : "Finalize Consultation"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

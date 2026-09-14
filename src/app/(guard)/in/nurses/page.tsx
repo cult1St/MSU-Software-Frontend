@@ -92,34 +92,41 @@ export default function NursesStationPage() {
 
     async function hydrate() {
       try {
-        const detail = await encountersService.getById(selectedId);
+        const chart = await encountersService.getChart(selectedId);
         if (!active) return;
+        const detail = chart.encounter;
         setEncounter(detail);
 
+        const person = chart.patient;
         let header: PatientHeaderInfo = {
           id: detail.patientId || detail.id,
-          name: detail.patientName || detail.fullName || "Patient",
+          name: detail.patientName || detail.fullName || person?.fullName || "Patient",
           dob: "—",
-          age: 0,
-          gender: "Other",
+          age: person?.age || 0,
+          gender:
+            person?.sex === "M" ? "Male" : person?.sex === "F" ? "Female" : "Other",
           bloodType: "—",
-          phone: "—",
+          phone: person?.phone || "—",
           lastVisit: detail.createdAt
             ? new Date(detail.createdAt).toLocaleDateString()
             : "—",
         };
-        if (detail.patientId) {
+        if (!person && detail.patientId) {
           try {
-            const person = await patientsService.getById(detail.patientId);
-            if (person) {
+            const fetched = await patientsService.getById(detail.patientId);
+            if (fetched) {
               header = {
                 ...header,
-                id: person.id,
-                name: person.fullName || header.name,
-                age: person.age || 0,
+                id: fetched.id,
+                name: fetched.fullName || header.name,
+                age: fetched.age || 0,
                 gender:
-                  person.sex === "M" ? "Male" : person.sex === "F" ? "Female" : "Other",
-                phone: person.phone || "—",
+                  fetched.sex === "M"
+                    ? "Male"
+                    : fetched.sex === "F"
+                      ? "Female"
+                      : "Other",
+                phone: fetched.phone || "—",
               };
             }
           } catch {
@@ -129,33 +136,29 @@ export default function NursesStationPage() {
         if (!active) return;
         setPatient(header);
 
-        try {
-          const history = await encountersService.getVitals(selectedId);
-          if (active) setVitalsHistory(history || []);
-        } catch {
-          if (active) setVitalsHistory([]);
-        }
+        const history = chart.vitals?.length
+          ? chart.vitals
+          : await encountersService.getVitals(selectedId).catch(() => []);
+        if (active) setVitalsHistory(history || []);
 
-        try {
-          const latest = await encountersService.getLatestVitals(selectedId);
-          if (!active) return;
-          if (!latest) {
-            setVitals(emptyVitals);
-            return;
-          }
-          setVitals({
-            bloodPressureSystolic: latest.bloodPressureSystolic ?? "",
-            bloodPressureDiastolic: latest.bloodPressureDiastolic ?? "",
-            pulseRate: latest.pulseRate ?? "",
-            temperatureCelsius: latest.temperature ?? "",
-            weightKg: latest.weight ?? "",
-            spo2: latest.spo2 ?? "",
-            respiratoryRate: latest.respiratoryRate ?? "",
-            notes: latest.notes || "",
-          });
-        } catch {
-          if (active) setVitals(emptyVitals);
+        const latest =
+          (history && history[history.length - 1]) ||
+          (await encountersService.getLatestVitals(selectedId).catch(() => null));
+        if (!active) return;
+        if (!latest) {
+          setVitals(emptyVitals);
+          return;
         }
+        setVitals({
+          bloodPressureSystolic: latest.bloodPressureSystolic ?? "",
+          bloodPressureDiastolic: latest.bloodPressureDiastolic ?? "",
+          pulseRate: latest.pulseRate ?? "",
+          temperatureCelsius: latest.temperature ?? "",
+          weightKg: latest.weight ?? "",
+          spo2: latest.spo2 ?? "",
+          respiratoryRate: latest.respiratoryRate ?? "",
+          notes: latest.notes || "",
+        });
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Unable to load encounter"));
       }
@@ -193,16 +196,8 @@ export default function NursesStationPage() {
     if (!selectedId) return;
     try {
       await handleSaveVitals();
-      try {
-        await encountersService.updateStatus(selectedId, { status: "Queued" });
-      } catch {
-        // Status may 500.
-      }
-      try {
-        await operationsService.joinQueue(selectedId);
-      } catch {
-        // Queue may 500.
-      }
+      await encountersService.updateStatus(selectedId, { status: "Queued" });
+      await operationsService.joinQueue(selectedId);
       toast.success("BP recorded. Patient sent to the doctor queue.");
       setSelectedId("");
       void loadBoard();

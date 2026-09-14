@@ -3,6 +3,7 @@ import type {
   QueueEntry,
   QueuePosition,
   ServiceWindow,
+  ServiceWindowCurrent,
   SetServiceWindowDTO,
   UpdateServiceWindowDTO,
 } from "@src/dto/operations";
@@ -15,6 +16,23 @@ import http from "@src/services/http";
 import { asList, unwrapData } from "@src/services/service-utils";
 import { normalizeApiError } from "@src/utils/api-error";
 
+function flattenServiceWindow(
+  data: ServiceWindowCurrent | ServiceWindow | null | undefined
+): ServiceWindow | null {
+  if (!data) return null;
+  if ("window" in data) {
+    const wrapped = data as ServiceWindowCurrent;
+    return {
+      ...(wrapped.window || {}),
+      isOpen:
+        typeof wrapped.isOpen === "boolean"
+          ? wrapped.isOpen
+          : wrapped.window?.isOpen,
+    };
+  }
+  return data as ServiceWindow;
+}
+
 class OperationsService {
   private handleError(err: unknown): never {
     throw normalizeApiError(err);
@@ -23,7 +41,9 @@ class OperationsService {
   async getServiceWindow() {
     try {
       const response = await http.get(`${API_V1}/service-window/current`);
-      return unwrapData<ServiceWindow>(response.data);
+      return flattenServiceWindow(
+        unwrapData<ServiceWindowCurrent | ServiceWindow>(response.data)
+      );
     } catch (err) {
       this.handleError(err);
     }
@@ -32,7 +52,9 @@ class OperationsService {
   async createServiceWindow(payload: SetServiceWindowDTO) {
     try {
       const response = await http.post(`${API_V1}/service-window`, payload);
-      return unwrapData<ServiceWindow>(response.data);
+      return flattenServiceWindow(
+        unwrapData<ServiceWindowCurrent | ServiceWindow>(response.data)
+      );
     } catch (err) {
       this.handleError(err);
     }
@@ -44,7 +66,9 @@ class OperationsService {
         `${API_V1}/service-window/${windowId}`,
         payload
       );
-      return unwrapData<ServiceWindow>(response.data);
+      return flattenServiceWindow(
+        unwrapData<ServiceWindowCurrent | ServiceWindow>(response.data)
+      );
     } catch (err) {
       this.handleError(err);
     }

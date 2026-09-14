@@ -123,24 +123,34 @@ export default function LabRequestsPanel({
       </div>
 
       <div className="bg-[#1A1C1E] text-white p-5 rounded-sm shadow-2xs space-y-5">
-        <span className="text-[10px] font-black tracking-wider uppercase text-gray-500 block">Board summary</span>
+        <span className="text-[10px] font-black tracking-wider uppercase text-gray-500 block">
+          Daily Summary
+        </span>
         <div>
           <div className="flex justify-between items-baseline">
-            <span className="text-4xl font-black font-sans tracking-tight">{String(completedCount).padStart(2, "0")}</span>
+            <span className="text-4xl font-black font-sans tracking-tight">
+              {String(completedCount).padStart(2, "0")}
+            </span>
             <span className="text-[11px] font-bold text-green-400 font-mono flex items-center gap-0.5">
               <TrendingUp size={12} /> done
             </span>
           </div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-1">Lab results posted</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-1">
+            Lab tests completed
+          </p>
         </div>
         <div className="border-t border-gray-800 pt-4">
           <div className="flex justify-between items-baseline">
-            <span className="text-4xl font-black font-sans tracking-tight">{String(requests.length).padStart(2, "0")}</span>
+            <span className="text-4xl font-black font-sans tracking-tight">
+              {String(requests.length).padStart(2, "0")}
+            </span>
             <span className="text-[11px] font-bold text-red-400 font-mono flex items-center gap-0.5">
               <TrendingDown size={12} /> open
             </span>
           </div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-1">Open lab requests</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-1">
+            Open lab requests
+          </p>
         </div>
       </div>
     </div>

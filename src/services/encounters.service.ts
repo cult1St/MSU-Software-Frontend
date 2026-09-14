@@ -4,6 +4,7 @@ import type {
   ContactTraceDTO,
   CreateConsultationDTO,
   Encounter,
+  EncounterChart,
   EncounterVitals,
   OpenEncounterDTO,
   RecordVitalsDTO,
@@ -15,6 +16,36 @@ import http from "@src/services/http";
 import { asList, unwrapData } from "@src/services/service-utils";
 import { normalizeApiError } from "@src/utils/api-error";
 
+function isChartPayload(value: unknown): value is EncounterChart {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "encounter" in value &&
+      (value as EncounterChart).encounter &&
+      typeof (value as EncounterChart).encounter === "object"
+  );
+}
+
+function flattenEncounter(chart: EncounterChart): Encounter {
+  const patientName = chart.patient?.fullName;
+  return {
+    ...chart.encounter,
+    patientName: patientName || chart.encounter.patientName,
+    fullName: patientName || chart.encounter.fullName,
+  };
+}
+
+function normalizeListQuery(query: EncounterListQuery = {}): EncounterListQuery {
+  const params: EncounterListQuery = { ...query };
+  // Live API 500s on `date`; from/to work.
+  if (params.date) {
+    if (!params.from) params.from = params.date;
+    if (!params.to) params.to = params.date;
+    delete params.date;
+  }
+  return params;
+}
+
 class EncountersService {
   private handleError(err: unknown): never {
     throw normalizeApiError(err);
@@ -23,25 +54,40 @@ class EncountersService {
   async open(payload: OpenEncounterDTO) {
     try {
       const response = await http.post(`${API_V1}/encounters`, payload);
-      return unwrapData<Encounter>(response.data);
+      const data = unwrapData<Encounter | EncounterChart>(response.data);
+      if (isChartPayload(data)) return flattenEncounter(data);
+      return data as Encounter;
+    } catch (err) {
+      this.handleError(err);
+    }
+  }
+
+  /** Full chart from GET /encounters/{id}. */
+  async getChart(encounterId: string) {
+    try {
+      const response = await http.get(`${API_V1}/encounters/${encounterId}`);
+      const data = unwrapData<Encounter | EncounterChart>(response.data);
+      if (isChartPayload(data)) {
+        return {
+          ...data,
+          encounter: flattenEncounter(data),
+        } satisfies EncounterChart;
+      }
+      return { encounter: data as Encounter } satisfies EncounterChart;
     } catch (err) {
       this.handleError(err);
     }
   }
 
   async getById(encounterId: string) {
-    try {
-      const response = await http.get(`${API_V1}/encounters/${encounterId}`);
-      return unwrapData<Encounter>(response.data);
-    } catch (err) {
-      this.handleError(err);
-    }
+    const chart = await this.getChart(encounterId);
+    return chart.encounter;
   }
 
   async list(query: EncounterListQuery = {}) {
     try {
       const response = await http.get(`${API_V1}/encounters`, {
-        params: query,
+        params: normalizeListQuery(query),
       });
       return asList<Encounter>(response.data);
     } catch (err) {
@@ -59,7 +105,9 @@ class EncountersService {
         `${API_V1}/encounters/${encounterId}/status`,
         payload
       );
-      return unwrapData<Encounter>(response.data);
+      const data = unwrapData<Encounter | EncounterChart>(response.data);
+      if (isChartPayload(data)) return flattenEncounter(data);
+      return data as Encounter;
     } catch (err) {
       this.handleError(err);
     }

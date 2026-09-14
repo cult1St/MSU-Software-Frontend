@@ -29,6 +29,12 @@ export interface ServiceWindow {
   createdBy?: string;
 }
 
+/** Live GET /service-window/current envelope. */
+export interface ServiceWindowCurrent {
+  isOpen?: boolean;
+  window?: ServiceWindow | null;
+}
+
 export interface SetServiceWindowDTO {
   date: string;
   coldCaseOpenTime: string;

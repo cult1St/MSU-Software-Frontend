@@ -95,13 +95,14 @@ export default function Sidebar() {
         </nav>
 
         <div className="flex flex-col gap-2 pt-3 border-t border-sidebar-border">
-          <button
-            type="button"
+          <Link
+            href="/in/protocol?mode=emergency"
+            onClick={closeSidebar}
             className="bg-brand-red text-white rounded-lg py-2.5 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-brand-reddark transition-colors"
           >
             <Siren className="w-4 h-4" />
             Emergency Entry
-          </button>
+          </Link>
 
           <Link
             href="/in/admin"

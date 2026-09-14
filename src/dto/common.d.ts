@@ -41,8 +41,13 @@ export type PrescriptionStatus = "Pending" | "Dispensed" | "HandedOver";
 
 export interface EncounterListQuery {
   status?: EncounterStatus;
-  date?: string;
   type?: AdmissionType;
+  /** Inclusive lower bound (YYYY-MM-DD). Prefer over `date` — live API 500s on `date`. */
+  from?: string;
+  /** Inclusive upper bound (YYYY-MM-DD). */
+  to?: string;
+  /** @deprecated Live API returns 500 when `date` is sent; mapped to from/to in the service. */
+  date?: string;
 }
 
 export interface DateStatusQuery {

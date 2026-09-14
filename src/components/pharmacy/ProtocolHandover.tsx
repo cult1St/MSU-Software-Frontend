@@ -33,10 +33,10 @@ export default function ProtocolHandover({
       <div className="flex justify-between items-center border-b border-gray-100 pb-3">
         <div className="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase tracking-wider">
           <Layers size={14} />
-          <span>Protocol counselling handover</span>
+          <span>Ready for Protocol Handover</span>
         </div>
         <span className="bg-gray-800 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-sm">
-          {batches.length} BATCHES
+          {batches.length} SECURED BATCHES
         </span>
       </div>
 
@@ -85,17 +85,17 @@ export default function ProtocolHandover({
         ))}
       </div>
 
-      <div className="flex justify-end pt-2">
+      <div className="flex justify-stretch pt-2">
         <button
           type="button"
           onClick={onSubmitHandover}
           disabled={isSubmitting || !canSubmit}
-          className="bg-[#2D3134] hover:bg-black text-white font-bold text-xs uppercase px-6 py-3 rounded-sm flex items-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed tracking-wide"
+          className="w-full bg-[#2D3134] hover:bg-black text-white font-bold text-xs uppercase px-6 py-3 rounded-sm flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed tracking-wide"
         >
           <span>
             {isSubmitting
-              ? "Processing Handovers..."
-              : `Confirm ${ready.length || ""} handover${ready.length === 1 ? "" : "s"}`}
+              ? "Submitting..."
+              : "Submit to Protocol Team"}
           </span>
           <Send size={13} />
         </button>

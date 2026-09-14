@@ -27,8 +27,34 @@ export interface Encounter {
   patientName?: string;
   fullName?: string;
   registeredBy?: string;
+  admittedAt?: string;
+  dischargedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** GET /encounters/{id} returns a chart envelope, not a flat encounter. */
+export interface EncounterChart {
+  encounter: Encounter;
+  patient?: {
+    id?: string;
+    fullName?: string;
+    age?: number;
+    sex?: string;
+    phone?: string;
+    address?: string;
+    nextOfKinName?: string;
+    nextOfKinPhone?: string;
+    nextOfKinRelationship?: string;
+    createdAt?: string;
+  } | null;
+  vitals?: EncounterVitals[];
+  consultation?: ConsultationRecord | null;
+  prescriptions?: unknown[];
+  labRequests?: unknown[];
+  labResults?: unknown[];
+  dressingOrders?: unknown[];
+  contactTrace?: ContactTrace | null;
 }
 
 export interface RecordVitalsDTO {

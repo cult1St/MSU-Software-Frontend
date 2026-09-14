@@ -11,10 +11,7 @@ import { KpiCard } from "@src/components/ui/kpi-card";
 import encountersService from "@src/services/encounters.service";
 import operationsService from "@src/services/operations.service";
 import pharmacyService from "@src/services/pharmacy.service";
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
+import labService from "@src/services/lab.service";
 
 function isEmergencyType(value?: string) {
   return String(value || "").toLowerCase().includes("emergency");
@@ -28,16 +25,16 @@ export default function StatCards() {
 
   useEffect(() => {
     let active = true;
-    const date = todayIso();
 
     async function load() {
-      const [emergencies, queue, consult, pharmacyPending, prescriptions] =
+      const [emergencies, queue, consult, pharmacyPending, prescriptions, labs] =
         await Promise.all([
-          encountersService.list({ type: "Emergency", date }).catch(() => []),
+          encountersService.list({ type: "Emergency" }).catch(() => []),
           operationsService.getQueue().catch(() => []),
-          encountersService.list({ status: "InConsultation", date }).catch(() => []),
-          encountersService.list({ status: "PharmacyPending", date }).catch(() => []),
-          pharmacyService.listPrescriptions({ status: "Pending", date }).catch(() => []),
+          encountersService.list({ status: "InConsultation" }).catch(() => []),
+          encountersService.list({ status: "PharmacyPending" }).catch(() => []),
+          pharmacyService.listPrescriptions({ status: "Pending" }).catch(() => []),
+          labService.listRequests({ status: "Pending" }).catch(() => []),
         ]);
 
       if (!active) return;
@@ -48,7 +45,10 @@ export default function StatCards() {
       setInConsult(String((consult || []).length).padStart(2, "0"));
       setPharmacy(
         String(
-          Math.max((pharmacyPending || []).length, (prescriptions || []).length)
+          Math.max(
+            (pharmacyPending || []).length,
+            (prescriptions || []).length
+          ) + (labs || []).length
         ).padStart(2, "0")
       );
     }
@@ -62,28 +62,28 @@ export default function StatCards() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard
-        label="Emergency ward"
+        label="Active Emergency"
         value={emergency}
-        hint="Skip the waitlist"
+        hint="Critically unstable cases"
         icon={HeartPulse}
         accent
       />
       <KpiCard
-        label="Cold-case queue"
+        label="Cold Cases"
         value={queued}
-        hint="Walk-ins waiting for doctor"
+        hint="Waiting in queue"
         icon={Bed}
       />
       <KpiCard
         label="In Consultation"
         value={inConsult}
-        hint="Today"
+        hint="Active doctor sessions"
         icon={UserRoundCheck}
       />
       <KpiCard
-        label="Pharmacy pending"
+        label="Pharma/Lab Hub"
         value={pharmacy}
-        hint="After consult"
+        hint="Patients in processing"
         icon={FlaskConical}
       />
     </div>

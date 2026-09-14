@@ -52,8 +52,17 @@ export function setStaffId(role: StaffRole, value: string) {
 export function requireStaffId(role: StaffRole, label?: string): string {
   const id = getStaffId(role);
   if (!isUuid(id)) {
+    const names: Record<StaffRole, string> = {
+      registrar: "registrar",
+      nurse: "nurse",
+      doctor: "doctor",
+      pharmacist: "pharmacist",
+      protocolOfficer: "protocol officer",
+      scientist: "lab scientist",
+      dressingNurse: "dressing nurse",
+    };
     throw new Error(
-      `${label || role} must be a UUID. Set it in Admin or NEXT_PUBLIC_STAFF_* env vars.`
+      `${label || names[role]} is not configured. Ask an administrator to set duty staff.`
     );
   }
   return id;

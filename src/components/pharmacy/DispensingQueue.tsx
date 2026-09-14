@@ -64,9 +64,13 @@ export default function DispensingQueue({
                   <button
                     type="button"
                     onClick={() => onSelect(item.id)}
-                    className="text-[10px] font-bold px-4 py-2 rounded-sm uppercase tracking-wide bg-[#2D3134] hover:bg-black text-white"
+                    className={`text-[10px] font-bold px-4 py-2 rounded-sm uppercase tracking-wide text-white ${
+                      item.isUrgentStat
+                        ? "bg-[#C62828] hover:bg-[#991B1B]"
+                        : "bg-[#2D3134] hover:bg-black"
+                    }`}
                   >
-                    {item.isUrgentStat ? "Urgent verify" : "Verify"}
+                    {item.isUrgentStat ? "Urgent Dispense" : "Dispense & Verify"}
                   </button>
                 </td>
               </tr>
@@ -120,7 +124,9 @@ export default function DispensingQueue({
               }}
               className="bg-[#B71C1C] text-white text-[10px] font-bold uppercase px-4 py-2 rounded-sm"
             >
-              Dispense
+              {queue.find((row) => row.id === selectedId)?.isUrgentStat
+                ? "Urgent Dispense"
+                : "Dispense & Verify"}
             </button>
           </div>
         </div>

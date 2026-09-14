@@ -29,5 +29,8 @@ export function serviceWindowLabel(windowInfo?: ServiceWindow | null): string {
   const open = windowInfo.coldCaseOpenTime || windowInfo.opensAt;
   const close = windowInfo.coldCaseCloseTime || windowInfo.closesAt;
   if (open && close) return `${open.slice(0, 8)} – ${close.slice(0, 8)}`;
+  if (typeof windowInfo.isOpen === "boolean" && !windowInfo.id) {
+    return windowInfo.isOpen ? "Open" : "No window set";
+  }
   return windowInfo.label || "Cold-case hours";
 }

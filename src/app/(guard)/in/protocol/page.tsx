@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import RegistrationForm from "@src/components/protocol/RegistrationForm";
 import RecentRecords from "@src/components/protocol/RecentRecords";
 import WaitlistTerminal from "@src/components/protocol/WaitlistTerminal";
@@ -28,7 +28,7 @@ export default function ProtocolPage() {
             Protocol & Registration Desk
           </h1>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
-            Cold cases: register, BP if over 40, then queue. Emergencies go straight to the ward.
+            Unit 04: Central Medical Processing
           </p>
         </div>
         <div
@@ -46,7 +46,9 @@ export default function ProtocolPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
-          <RegistrationForm />
+          <Suspense fallback={<div className="bg-white border p-5 text-xs text-gray-400">Loading registration…</div>}>
+            <RegistrationForm />
+          </Suspense>
           <RecentRecords />
         </div>
         <div className="lg:col-span-1">

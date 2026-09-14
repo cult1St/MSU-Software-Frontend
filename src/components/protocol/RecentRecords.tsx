@@ -65,24 +65,25 @@ export default function RecentRecords() {
 
   const openEncounter = async (encounter: Encounter) => {
     try {
-      const detail = await encountersService.getById(encounter.id);
-      setSelected(detail);
-      try {
-        const existing = await encountersService.getContactTrace(encounter.id);
-        setHasTrace(Boolean(existing?.id || existing?.nextOfKinName || existing?.residentialAddress));
-        setTraceForm({
-          nextOfKinName: existing?.nextOfKinName || "",
-          nextOfKinPhone: existing?.nextOfKinPhone || "",
-          nextOfKinRelationship: existing?.nextOfKinRelationship || "",
-          residentialAddress: existing?.residentialAddress || "",
-          workplaceAddress: existing?.workplaceAddress || "",
-          dischargeNotes: existing?.dischargeNotes || "",
-          referralDestination: existing?.referralDestination || "",
-        });
-      } catch {
-        setHasTrace(false);
-        setTraceForm(emptyTrace);
-      }
+      const chart = await encountersService.getChart(encounter.id);
+      setSelected(chart.encounter);
+      const existing =
+        chart.contactTrace ||
+        (await encountersService.getContactTrace(encounter.id).catch(() => null));
+      setHasTrace(
+        Boolean(
+          existing?.id || existing?.nextOfKinName || existing?.residentialAddress
+        )
+      );
+      setTraceForm({
+        nextOfKinName: existing?.nextOfKinName || "",
+        nextOfKinPhone: existing?.nextOfKinPhone || "",
+        nextOfKinRelationship: existing?.nextOfKinRelationship || "",
+        residentialAddress: existing?.residentialAddress || "",
+        workplaceAddress: existing?.workplaceAddress || "",
+        dischargeNotes: existing?.dischargeNotes || "",
+        referralDestination: existing?.referralDestination || "",
+      });
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to load encounter"));
     }
@@ -128,7 +129,7 @@ export default function RecentRecords() {
         <div className="bg-[#2D3134] text-white p-3.5 px-4 flex justify-between items-center">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <FileSpreadsheet size={16} />
-            <span>Recent Encounters</span>
+            <span>Recent Patient Records</span>
           </div>
           <div className="flex gap-2">
             <select
@@ -165,9 +166,9 @@ export default function RecentRecords() {
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-[#1A1C1E] text-gray-400 font-bold text-[10px] uppercase tracking-wider">
-                <th className="p-3 pl-4">Encounter</th>
-                <th className="p-3">Patient</th>
-                <th className="p-3">Complaint</th>
+                <th className="p-3 pl-4">Patient ID</th>
+                <th className="p-3">Name</th>
+                <th className="p-3">Last Visit</th>
                 <th className="p-3">Status</th>
                 <th className="p-3 pr-4 text-right">Actions</th>
               </tr>
@@ -190,16 +191,24 @@ export default function RecentRecords() {
               {records.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50/60">
                   <td className="p-3 pl-4 font-mono text-gray-500 font-semibold">
-                    {item.id.slice(0, 8)}
+                    #{item.id.slice(0, 8).toUpperCase()}
                   </td>
                   <td className="p-3 font-bold text-gray-800">
                     {item.patientName || item.fullName || item.patientId || "—"}
                   </td>
                   <td className="p-3 text-gray-600">
-                    {item.chiefComplaint || "—"}
+                    {item.createdAt
+                      ? new Date(item.createdAt).toLocaleDateString()
+                      : "—"}
                   </td>
                   <td className="p-3">
-                    <span className="px-2 py-0.5 rounded-sm text-[9px] font-extrabold tracking-wide bg-amber-50 text-amber-700 border border-amber-200">
+                    <span
+                      className={`px-2 py-0.5 rounded-sm text-[9px] font-extrabold tracking-wide border ${
+                        String(item.status || "").toLowerCase().includes("discharge")
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}
+                    >
                       {item.status || "UNKNOWN"}
                     </span>
                   </td>

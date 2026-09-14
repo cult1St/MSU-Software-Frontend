@@ -18,13 +18,12 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[2.2fr_1fr] gap-5 items-start">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11.5px] text-surface-muted px-1 py-1.5">
-          <span>Live counts from encounters, queue, and pharmacy APIs</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            Live unit overview
+          </span>
         </div>
         <UnitHeatmap />
-      </div>
-
-      <div className="text-right text-[10px] text-[#b5b5b9] pt-1">
-        GILEAD_PORTAL_SECURE_V4.2.0 // UNIT_CMD_ALPHA_5
       </div>
     </>
   );

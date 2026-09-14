@@ -114,7 +114,7 @@ export default function PatientFlow() {
       <Table className="min-w-[560px]">
         <TableHeader>
           <TableRow className="border-0 hover:bg-transparent">
-            <TableHead>Patient / Encounter</TableHead>
+            <TableHead>Patient ID</TableHead>
             <TableHead>Case Type</TableHead>
             <TableHead>Current Status</TableHead>
             <TableHead>Time</TableHead>
