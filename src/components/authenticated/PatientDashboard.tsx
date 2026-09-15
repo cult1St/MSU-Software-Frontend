@@ -1,9 +1,17 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, type ChangeEvent, type FormEvent, type SyntheticEvent } from 'react';
 import {
-  Menu, X, HeartPulse, Stethoscope, Syringe, UserCheck, MapPin, Phone, Mail, Clock, ShieldCheck, Star, CalendarDays, Volume2, Loader, Zap, User, LogOut, MessageSquare, Home, FileText, Settings, CreditCard, Bell
+  Menu, X, HeartPulse, Stethoscope, Syringe, UserCheck, MapPin, Phone, Mail, Clock, ShieldCheck, Star, CalendarDays, Volume2, Loader, Zap, LogOut, MessageSquare, Home, FileText, Settings, CreditCard, Bell
 } from 'lucide-react';
+
+type ContactFormData = {
+  name: string;
+  email: string;
+  phone: string;
+  service: string;
+  date: string;
+};
 
 // --- DUMMY DATA AND SIMULATION CONSTANTS ---
 const DUMMY_USER_ID = "PATIENT-7890-XYZ";
@@ -39,12 +47,12 @@ const DUMMY_APPOINTMENTS = [
 ];
 
 // --- API CONSTANTS (Kept for LLM features only) ---
-const apiKey = ""; // Canvas will provide this key at runtime
+const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY ?? "";
 const GENERATE_CONTENT_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 const TTS_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
 // Helper for Exponential Backoff
-const fetchWithExponentialBackoff = async (url: string, options: any, retries = 3) => {
+const fetchWithExponentialBackoff = async (url: string, options: RequestInit, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
@@ -77,7 +85,7 @@ const base64ToArrayBuffer = (base64: string) => {
 };
 
 // Helper for PCM to WAV conversion (for TTS)
-const pcmToWav = (pcmData: any, sampleRate: any) => {
+const pcmToWav = (pcmData: Int16Array, sampleRate: number) => {
   const buffer = new ArrayBuffer(44 + pcmData.byteLength);
   const view = new DataView(buffer);
   let offset = 0;
@@ -89,12 +97,12 @@ const pcmToWav = (pcmData: any, sampleRate: any) => {
     offset += str.length;
   };
 
-  const writeUint32 = (val: any) => {
+  const writeUint32 = (val: number) => {
     view.setUint32(offset, val, true);
     offset += 4;
   };
 
-  const writeUint16 = (val: any) => {
+  const writeUint16 = (val: number) => {
     view.setUint16(offset, val, true);
     offset += 2;
   };
@@ -133,10 +141,10 @@ const pcmToWav = (pcmData: any, sampleRate: any) => {
 };
 
 // Simple Markdown Renderer for LLM Output
-const MarkdownRenderer = ({ content }: { content: any}) => {
+const MarkdownRenderer = ({ content }: { content: string }) => {
     if (!content) return null;
 
-    const formattedContent = content.split('\n').map((line: any, index: any) => {
+    const formattedContent = content.split('\n').map((line: string, index: number) => {
         if (line.startsWith('###')) {
             return <h4 key={index} className="text-lg font-bold mt-3 mb-1 text-gray-800">{line.replace('###', '').trim()}</h4>;
         }
@@ -177,7 +185,7 @@ const LogoutButton = () => {
 
 
 // 1. Mobile-friendly Navbar Component
-const Navbar = ({ isDashboard, userId, toggleSidebar }: { isDashboard: any, userId: string|number, toggleSidebar: any }) => {
+const Navbar = ({ isDashboard, userId, toggleSidebar }: { isDashboard: boolean, userId: string|number, toggleSidebar: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const publicNavItems = [
@@ -313,13 +321,15 @@ const Hero = () => (
         <div className="mt-12 lg:mt-0 col-span-12 lg:col-span-5 relative">
           {/* Placeholder for a professional medical image */}
           <div className="aspect-w-16 aspect-h-9 sm:aspect-h-10 md:aspect-h-12 rounded-3xl overflow-hidden shadow-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="https://placehold.co/600x400/1D4ED8/FFFFFF?text=Modern+Medical+Clinic"
               alt="A smiling doctor and patient in a modern clinic."
               className="object-cover w-full h-full"
-              onError={(e: any) => {
-                e.target.onerror = null;
-                e.target.src = "https://placehold.co/600x400/1D4ED8/FFFFFF?text=Trusted+Care";
+              onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                const target = e.currentTarget;
+                target.onerror = null;
+                target.src = "https://placehold.co/600x400/1D4ED8/FFFFFF?text=Trusted+Care";
               }}
             />
           </div>
@@ -359,9 +369,9 @@ const ServicesSection = () => {
     { id: 'cardiology', icon: HeartPulse, title: 'Cardiology Diagnostics', description: 'Advanced screening and testing for heart health, including EKG and stress testing.' },
     { id: 'preventative', icon: UserCheck, title: 'Preventative Health', description: 'Wellness exams, health screenings, and lifestyle counseling tailored to your needs.' },
   ];
-  const [isReading, setIsReading] = useState(null); // Tracks which service ID is being read
+  const [isReading, setIsReading] = useState<string | null>(null); // Tracks which service ID is being read
 
-  const readDescription = async (text: string, id: any) => {
+  const readDescription = async (text: string, id: string) => {
     if (isReading === id) return; // Prevent double click
 
     setIsReading(id);
@@ -521,7 +531,7 @@ const TestimonialsSection = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {testimonials.map((t, index) => (
                         <div key={index} className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-                            <p className="text-2xl italic text-gray-700 mb-4 leading-relaxed">"{t.quote}"</p>
+                            <p className="text-2xl italic text-gray-700 mb-4 leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
                             <div className="font-semibold text-blue-700">- {t.name}</div>
                         </div>
                     ))}
@@ -532,9 +542,9 @@ const TestimonialsSection = () => {
 };
 
 // 7. Contact Form Section (Simulated Submission)
-const ContactForm = ({ userId }: { userId: string | number }) => {
+const ContactForm = () => {
   // Removed 'db' prop
-  const [formData, setFormData] = useState<any>({ name: '', email: '', phone: '', service: '', date: '' });
+  const [formData, setFormData] = useState<ContactFormData>({ name: '', email: '', phone: '', service: '', date: '' });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
   const [prepList, setPrepList] = useState<string|null>(null);
@@ -543,9 +553,9 @@ const ContactForm = ({ userId }: { userId: string | number }) => {
 
   const services = ['General Checkup', 'Vaccination', 'Specialist Consultation', 'Physical Therapy'];
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (name === 'service') {
         // Clear prep list when service changes
         setPrepList(null);
@@ -553,7 +563,7 @@ const ContactForm = ({ userId }: { userId: string | number }) => {
     }
   };
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setIsSubmitting(true);
@@ -832,7 +842,7 @@ const DashboardPlaceholder = ({ title }: { title: string }) => (
 );
 
 // Main Appointment View (Using DUMMY_APPOINTMENTS)
-const AppointmentsView = ({ userId }: { userId: string | number }) => {
+const AppointmentsView = () => {
     // Removed dependency on 'db'
     const appointments = DUMMY_APPOINTMENTS; // Use static dummy data
 
@@ -848,7 +858,7 @@ const AppointmentsView = ({ userId }: { userId: string | number }) => {
                     {appointments.length === 0 ? (
                         <div className="text-center p-8 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                             <MessageSquare className="w-8 h-8 mx-auto text-gray-400 mb-3" />
-                            <p className="text-gray-600">You don't have any appointments scheduled yet.</p>
+                            <p className="text-gray-600">You don&apos;t have any appointments scheduled yet.</p>
                             <a href="#contact" className="mt-4 inline-block text-emerald-600 hover:text-emerald-700 font-semibold">
                                 Book Your First Appointment &rarr;
                             </a>
@@ -903,7 +913,7 @@ const AppointmentsView = ({ userId }: { userId: string | number }) => {
                     
                     <div className="p-6 rounded-xl shadow-md border-l-4 border-yellow-500 bg-yellow-50">
                         <h3 className="text-xl font-bold text-gray-800 mb-3">Daily Health Tip</h3>
-                        <p className="text-sm text-gray-600 italic">"Remember to drink at least 8 glasses of water today, especially if you have a virtual appointment scheduled. Hydration can improve focus!"</p>
+                        <p className="text-sm text-gray-600 italic">&ldquo;Remember to drink at least 8 glasses of water today, especially if you have a virtual appointment scheduled. Hydration can improve focus!&rdquo;</p>
                     </div>
                 </div>
             </div>
@@ -913,7 +923,7 @@ const AppointmentsView = ({ userId }: { userId: string | number }) => {
 
 
 // 9. Patient Dashboard (Refined Layout using Side Navigation)
-const PatientDashboard = ({ userId, isSidebarOpen, setIsSidebarOpen }: { userId: string | number | any, isSidebarOpen: boolean, setIsSidebarOpen: any }) => {
+const PatientDashboard = ({ userId, isSidebarOpen, setIsSidebarOpen }: { userId: string | number, isSidebarOpen: boolean, setIsSidebarOpen: (open: boolean) => void }) => {
     // Removed 'auth', 'setIsAuthReady', and 'db' props
     const [activeTab, setActiveTab] = useState('Home');
 
@@ -931,7 +941,7 @@ const PatientDashboard = ({ userId, isSidebarOpen, setIsSidebarOpen }: { userId:
             case 'Home':
             case 'Appointments':
                 // Pass only necessary props (no 'db')
-                return <AppointmentsView userId={userId} />;
+                return <AppointmentsView />;
             case 'Messages':
                 return <DashboardPlaceholder title="Secure Patient Messaging" />;
             case 'Records':
@@ -941,7 +951,7 @@ const PatientDashboard = ({ userId, isSidebarOpen, setIsSidebarOpen }: { userId:
             case 'Settings':
                 return <DashboardPlaceholder title="Account Settings" />;
             default:
-                return <AppointmentsView userId={userId} />;
+                return <AppointmentsView />;
         }
     };
     
@@ -975,7 +985,7 @@ const PatientDashboard = ({ userId, isSidebarOpen, setIsSidebarOpen }: { userId:
                 <div className="pb-6 mb-6 border-b border-blue-700">
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-lg">
-                            {userId ? userId[0].toUpperCase() : 'U'}
+                            {userId ? String(userId)[0].toUpperCase() : 'U'}
                         </div>
                         <div>
                             <p className="font-semibold">Patient Account</p>
@@ -1040,7 +1050,7 @@ const PatientDashboard = ({ userId, isSidebarOpen, setIsSidebarOpen }: { userId:
 };
 
 // 10. Component containing all public-facing sections
-const LandingPage = ({ userId }: {userId: string | number}) => (
+const LandingPage = () => (
     // Removed 'db' prop
     <>
         <main>
@@ -1049,7 +1059,7 @@ const LandingPage = ({ userId }: {userId: string | number}) => (
             <ServicesSection />
             <ValueProposition />
             <TestimonialsSection />
-            <ContactForm userId={userId} />
+            <ContactForm />
         </main>
         <Footer />
     </>
@@ -1066,7 +1076,7 @@ const PatientsIn = () => {
     const isLoading = false; 
 
     // Determine current view (always dashboard for this dummy setup)
-    const isDashboard = isAuthReady && userId;
+    const isDashboard = Boolean(isAuthReady && userId);
 
     if (isLoading) {
         return (
@@ -1098,7 +1108,7 @@ const PatientsIn = () => {
                 />
             ) : (
                 // This path is unlikely to be hit given the dummy data setup
-                <LandingPage userId={userId || 'anonymous'} />
+                <LandingPage />
             )}
         </div>
     );

@@ -1,4 +1,5 @@
 import { CalendarDays } from "lucide-react";
+import type { SyntheticEvent } from "react";
 
 const Hero = () => (
   <section className="pt-18 md:pt-24 bg-gray-50 overflow-hidden">
@@ -27,13 +28,15 @@ const Hero = () => (
         <div className="mt-12 lg:mt-0 col-span-12 lg:col-span-5 relative">
           {/* Placeholder for a professional medical image */}
           <div className="rounded-3xl overflow-hidden shadow-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo/logo.png"
               alt="A smiling doctor and patient in a modern clinic."
               className="object-cover w-full h-full"
-              onError={(e: any) => {
-                e.target.onerror = null;
-                e.target.src = "https://placehold.co/600x400/1D4ED8/FFFFFF?text=Trusted+Care";
+              onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                const target = e.currentTarget;
+                target.onerror = null;
+                target.src = "https://placehold.co/600x400/1D4ED8/FFFFFF?text=Trusted+Care";
               }}
             />
           </div>
