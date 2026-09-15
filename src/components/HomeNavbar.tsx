@@ -1,6 +1,7 @@
 "use client"
 
 import { HeartPulse, Menu, X } from "lucide-react"
+import Link from "next/link"
 import { useState } from "react"
 
 function HomeNavbar() {
@@ -18,10 +19,10 @@ function HomeNavbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           {/* Logo/Brand */}
-          <a href="/" className="flex items-center space-x-2 text-2xl font-bold text-blue-700 hover:text-blue-900 transition">
+          <Link href="/" className="flex items-center space-x-2 text-2xl font-bold text-blue-700 hover:text-blue-900 transition">
             <HeartPulse className="w-8 h-8 text-emerald-500" />
             <span>MSU</span>
-          </a>
+          </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex space-x-8">
@@ -37,12 +38,12 @@ function HomeNavbar() {
           </nav>
 
           {/* CTA Button (Desktop) */}
-          <a
+          <Link
             href="/sign-in"
             className="hidden md:inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-full shadow-lg text-white bg-emerald-500 hover:bg-emerald-600 transition duration-300 transform hover:scale-105"
           >
             Book Appointment
-          </a>
+          </Link>
 
           {/* Mobile Menu Button */}
           <button
@@ -72,13 +73,13 @@ function HomeNavbar() {
               {item.name}
             </a>
           ))}
-          <a
+          <Link
             href="/sign-in"
             onClick={() => setIsOpen(false)}
             className="block w-full text-center mt-4 px-3 py-2 border border-transparent text-base font-medium rounded-md text-white bg-emerald-500 hover:bg-emerald-600 transition"
           >
             Book Appointment
-          </a>
+          </Link>
         </div>
       </div>
     </header>

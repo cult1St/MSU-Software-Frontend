@@ -1,20 +1,28 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, type ChangeEvent, type FormEvent } from 'react';
 import {
- HeartPulse, Stethoscope, Syringe, UserCheck, MapPin, Phone, Mail, Clock, ShieldCheck, Star, CalendarDays, Volume2, Loader, Zap
+ HeartPulse, Stethoscope, Syringe, UserCheck, MapPin, Phone, Clock, ShieldCheck, Star, Volume2, Loader, Zap
 } from 'lucide-react';
 import HomeNavbar from '@src/components/HomeNavbar';
 import Footer from '@src/components/Footer';
 import Hero from '@src/components/Hero';
 
+type ContactFormData = {
+  name: string;
+  email: string;
+  phone: string;
+  service: string;
+  date: string;
+};
+
 // --- Global API Constants and Helpers ---
-const apiKey = "AIzaSyDo_jzqJKawKL72NOArXvqP2artwE50St4";
+const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY ?? "";
 const GENERATE_CONTENT_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 const TTS_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
 // Helper for Exponential Backoff
-const fetchWithExponentialBackoff = async (url: string, options: any, retries = 3) => {
+const fetchWithExponentialBackoff = async (url: string, options: RequestInit, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
@@ -47,7 +55,7 @@ const base64ToArrayBuffer = (base64: string) => {
 };
 
 // Helper for PCM to WAV conversion (for TTS)
-const pcmToWav = (pcmData: any, sampleRate:any) => {
+const pcmToWav = (pcmData: Int16Array, sampleRate: number) => {
   const buffer = new ArrayBuffer(44 + pcmData.byteLength);
   const view = new DataView(buffer);
   let offset = 0;
@@ -59,12 +67,12 @@ const pcmToWav = (pcmData: any, sampleRate:any) => {
     offset += str.length;
   };
 
-  const writeUint32 = (val: any) => {
+  const writeUint32 = (val: number) => {
     view.setUint32(offset, val, true);
     offset += 4;
   };
 
-  const writeUint16 = (val: any) => {
+  const writeUint16 = (val: number) => {
     view.setUint16(offset, val, true);
     offset += 2;
   };
@@ -103,10 +111,10 @@ const pcmToWav = (pcmData: any, sampleRate:any) => {
 };
 
 // Simple Markdown Renderer for LLM Output
-const MarkdownRenderer = ({ content }: { content: any }) => {
+const MarkdownRenderer = ({ content }: { content: string }) => {
     if (!content) return null;
 
-    const formattedContent = content.split('\n').map((line: any, index: any) => {
+    const formattedContent = content.split('\n').map((line: string, index: number) => {
         if (line.startsWith('###')) {
             return <h4 key={index} className="text-lg font-bold mt-3 mb-1 text-gray-800">{line.replace('###', '').trim()}</h4>;
         }
@@ -160,9 +168,9 @@ const ServicesSection = () => {
     { id: 'cardiology', icon: HeartPulse, title: 'Cardiology Diagnostics', description: 'Advanced screening and testing for heart health, including EKG and stress testing.' },
     { id: 'preventative', icon: UserCheck, title: 'Preventative Health', description: 'Wellness exams, health screenings, and lifestyle counseling tailored to your needs.' },
   ];
-  const [isReading, setIsReading] = useState(null); // Tracks which service ID is being read
+  const [isReading, setIsReading] = useState<string | null>(null); // Tracks which service ID is being read
 
-  const readDescription = async (text: string, id: any) => {
+  const readDescription = async (text: string, id: string) => {
     if (isReading === id) return; // Prevent double click
 
     setIsReading(id);
@@ -270,82 +278,20 @@ const ServicesSection = () => {
   );
 };
 
-// 5. Value Proposition Section
-const ValueProposition = () => {
-    const pillars = [
-        { icon: CalendarDays, title: 'Easy Booking & Short Waits', description: 'Use our online portal to schedule appointments and minimize time spent in the waiting room.' },
-        { icon: UserCheck, title: 'Certified Specialists', description: 'Our medical team is board-certified, experienced, and dedicated to compassionate, personalized care.' },
-        { icon: Syringe, title: 'State-of-the-Art Technology', description: 'We utilize the latest diagnostic tools for accurate results and effective, modern treatment plans.' },
-    ];
-
-    return (
-        <section className="py-20 bg-blue-700">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <h2 className="text-3xl md:text-4xl font-extrabold text-center text-white mb-12">
-                    Why Patients Choose HealthBridge
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {pillars.map((pillar, index) => (
-                        <div key={index} className="text-center p-6 bg-white rounded-xl shadow-xl">
-                            <pillar.icon className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">{pillar.title}</h3>
-                            <p className="text-gray-600">{pillar.description}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-};
-
-// 6. Testimonials Section
-const TestimonialsSection = () => {
-    const testimonials = [
-        { quote: "The easiest medical experience I've ever had. From booking to diagnosis, everything was seamless and professional.", name: 'Sarah L.', rating: 5 },
-        { quote: "Dr. Chen listened attentively and provided clear, practical steps for my recovery. Truly expert and compassionate care.", name: 'Michael J.', rating: 5 },
-    ];
-
-    return (
-        <section id="testimonials" className="py-20 bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <h2 className="text-3xl md:text-4xl font-extrabold text-center text-gray-900 mb-4">
-                    What Our Patients Say
-                </h2>
-                <div className="flex justify-center mb-12">
-                    <div className="flex space-x-1">
-                        {[...Array(5)].map((_, i) => (
-                            <Star key={i} className="w-6 h-6 text-yellow-500 fill-yellow-500" />
-                        ))}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {testimonials.map((t, index) => (
-                        <div key={index} className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-                            <p className="text-2xl italic text-gray-700 mb-4 leading-relaxed">"{t.quote}"</p>
-                            <div className="font-semibold text-blue-700">- {t.name}</div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-};
-
 // 7. Contact Form Section (Updated for LLM feature)
 const ContactForm = () => {
-  const [formData, setFormData] = useState<any>({ name: '', email: '', phone: '', service: '', date: '' });
-  const [isSubmitting, setIsSubmitting] = useState<any>(false);
+  const [formData, setFormData] = useState<ContactFormData>({ name: '', email: '', phone: '', service: '', date: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>('');
-  const [prepList, setPrepList] = useState<any>(null);
-  const [isGeneratingPrep, setIsGeneratingPrep] = useState<any>(false);
-  const [alertMessage, setAlertMessage] = useState<any>(null); // Custom alert for user prompts
+  const [prepList, setPrepList] = useState<string | null>(null);
+  const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null); // Custom alert for user prompts
 
   const services = ['General Checkup', 'Vaccination', 'Specialist Consultation', 'Physical Therapy'];
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (name === 'service') {
         // Clear prep list when service changes
         setPrepList(null);
@@ -353,7 +299,7 @@ const ContactForm = () => {
     }
   };
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setMessage('');
@@ -576,8 +522,6 @@ const HomePage = () => {
         <Hero />
         <TrustBar />
         <ServicesSection />
-        {/* <ValueProposition /> */}
-        {/* <TestimonialsSection /> */}
         <ContactForm />
       </main>
       <Footer />
