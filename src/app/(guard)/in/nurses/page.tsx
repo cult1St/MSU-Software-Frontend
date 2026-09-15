@@ -8,12 +8,14 @@ import VitalTelemetry from "@src/components/consultation/VitalTelemetry";
 import { VitalMetrics, PatientHeaderInfo } from "@src/types/consultation";
 import type { Encounter, EncounterVitals } from "@src/dto/encounter";
 import type { DressingOrder } from "@src/dto/lab";
-import { requireStaffId } from "@src/utils/staff";
+import { getStaffId, isUuid, requireStaffId } from "@src/utils/staff";
 import encountersService from "@src/services/encounters.service";
 import patientsService from "@src/services/patients.service";
 import operationsService from "@src/services/operations.service";
 import labService from "@src/services/lab.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
+import { useAuth } from "@src/context/auth-context";
+import { nurseSections } from "@src/utils/roles";
 
 const emptyVitals: VitalMetrics = {
   bloodPressureSystolic: "",
@@ -35,6 +37,8 @@ function isEmergencyEncounter(item: Encounter) {
 }
 
 export default function NursesStationPage() {
+  const { role } = useAuth();
+  const sections = nurseSections(role);
   const [bpQueue, setBpQueue] = useState<Encounter[]>([]);
   const [emergencyQueue, setEmergencyQueue] = useState<Encounter[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -219,8 +223,13 @@ export default function NursesStationPage() {
   const completeDressing = async () => {
     if (!selectedDressing) return;
     try {
+      const performedBy =
+        getStaffId("dressingNurse") || getStaffId("nurse");
+      if (!isUuid(performedBy)) {
+        throw new Error("Sign in as Nurse or Dressing Nurse to complete this.");
+      }
       await labService.completeDressing(selectedDressing.id, {
-        performedBy: requireStaffId("dressingNurse", "performedBy"),
+        performedBy,
         procedureNotes: procedureNotes || null,
       });
       toast.success("Dressing / injection completed");
@@ -272,46 +281,51 @@ export default function NursesStationPage() {
         </div>
 
         <PatientBanner patient={patient || undefined} />
-        <VitalTelemetry vitals={vitals} onChange={setVitals} />
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void handleSaveVitals()}
-            className="px-4 py-2 text-xs font-bold uppercase border border-gray-300 rounded-sm hover:bg-gray-50"
-          >
-            Record vitals
-          </button>
-          {isBpCase && (
-            <button
-              type="button"
-              onClick={() => void sendToDoctorQueue()}
-              className="px-4 py-2 text-xs font-bold uppercase bg-[#B71C1C] text-white rounded-sm hover:bg-[#991B1B]"
-            >
-              BP done — join doctor queue
-            </button>
-          )}
-          {isEmergency && (
-            <span className="self-center text-[11px] font-bold uppercase text-[#C62828]">
-              Emergency — vitals only, no queue
-            </span>
-          )}
-        </div>
+        {sections.vitals && (
+          <>
+            <VitalTelemetry vitals={vitals} onChange={setVitals} />
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleSaveVitals()}
+                className="px-4 py-2 text-xs font-bold uppercase border border-gray-300 rounded-sm hover:bg-gray-50"
+              >
+                Record vitals
+              </button>
+              {isBpCase && (
+                <button
+                  type="button"
+                  onClick={() => void sendToDoctorQueue()}
+                  className="px-4 py-2 text-xs font-bold uppercase bg-[#B71C1C] text-white rounded-sm hover:bg-[#991B1B]"
+                >
+                  BP done — join doctor queue
+                </button>
+              )}
+              {isEmergency && (
+                <span className="self-center text-[11px] font-bold uppercase text-[#C62828]">
+                  Emergency — vitals only, no queue
+                </span>
+              )}
+            </div>
 
-        {vitalsHistory.length > 0 && (
-          <div className="text-[11px] text-gray-500">
-            History:{" "}
-            {vitalsHistory
-              .slice(0, 5)
-              .map(
-                (row) =>
-                  `${row.bloodPressureSystolic ?? "—"}/${row.bloodPressureDiastolic ?? "—"} @ ${
-                    row.recordedAt ? new Date(row.recordedAt).toLocaleTimeString() : "—"
-                  }`
-              )
-              .join(" · ")}
-          </div>
+            {vitalsHistory.length > 0 && (
+              <div className="text-[11px] text-gray-500">
+                History:{" "}
+                {vitalsHistory
+                  .slice(0, 5)
+                  .map(
+                    (row) =>
+                      `${row.bloodPressureSystolic ?? "—"}/${row.bloodPressureDiastolic ?? "—"} @ ${
+                        row.recordedAt ? new Date(row.recordedAt).toLocaleTimeString() : "—"
+                      }`
+                  )
+                  .join(" · ")}
+              </div>
+            )}
+          </>
         )}
 
+        {sections.dressing && (
         <div className="bg-white border border-gray-200 rounded-sm p-4 space-y-3">
           <h3 className="text-sm font-bold">Dressing / injection</h3>
           {dressingOrders.length === 0 && (
@@ -363,6 +377,7 @@ export default function NursesStationPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-gray-500 font-mono pt-4 border-t border-gray-200 gap-2">

@@ -24,7 +24,17 @@ export function asList<T>(payload: unknown): T[] {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === "object") {
     const record = data as UnknownRecord;
-    for (const key of ["items", "results", "records", "queue", "prescriptions", "requests", "orders", "encounters"]) {
+    for (const key of [
+      "items",
+      "results",
+      "records",
+      "queue",
+      "prescriptions",
+      "requests",
+      "orders",
+      "encounters",
+      "staff",
+    ]) {
       if (Array.isArray(record[key])) return record[key] as T[];
     }
   }

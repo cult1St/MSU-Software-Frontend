@@ -3,8 +3,8 @@
  * Kept as a thin re-export for any legacy imports.
  */
 import authService from "@src/services/auth.service";
-import type { RegisterDTO } from "@src/dto/auth";
+import type { LoginDTO } from "@src/dto/auth";
 
-export async function UserSignUp(params: RegisterDTO) {
-  return authService.register(params);
+export async function UserSignIn(params: LoginDTO) {
+  return authService.login(params);
 }

@@ -17,6 +17,8 @@ import labService from "@src/services/lab.service";
 import encountersService from "@src/services/encounters.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
 import { requireStaffId } from "@src/utils/staff";
+import { useAuth } from "@src/context/auth-context";
+import { pharmacySections } from "@src/utils/roles";
 
 const emptyDispense: DispenseForm = {
   quantityDispensed: 1,
@@ -58,6 +60,8 @@ function mapLabStatus(status?: string): LabRequestItem["status"] {
 }
 
 export default function PharmacyAndLabPage() {
+  const { role } = useAuth();
+  const sections = pharmacySections(role);
   const [dispenseQueue, setDispenseQueue] = useState<DispenseQueueItem[]>([]);
   const [labRequests, setLabRequests] = useState<LabRequestItem[]>([]);
   const [handoverBatches, setHandoverBatches] = useState<HandoverBatch[]>([]);
@@ -296,53 +300,62 @@ export default function PharmacyAndLabPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4 items-start">
-          <div className="lg:col-span-2 space-y-6">
-            <DispensingQueue
-              queue={dispenseQueue}
-              selectedId={selectedRx}
-              form={dispenseForm}
-              onSelect={(id) => void handleSelectPrescription(id)}
-              onFormChange={(patch) => setDispenseForm((prev) => ({ ...prev, ...patch }))}
-              onDispense={handleDispenseAction}
-            />
-            <ProtocolHandover
-              batches={handoverBatches}
-              onToggle={(id, field) =>
-                setHandoverBatches((prev) =>
-                  prev.map((batch) =>
-                    batch.id === id && typeof batch[field] === "boolean"
-                      ? { ...batch, [field]: !batch[field] }
-                      : batch
+          <div className={`${sections.lab ? "lg:col-span-2" : "lg:col-span-3"} space-y-6`}>
+            {sections.dispense && (
+              <DispensingQueue
+                queue={dispenseQueue}
+                selectedId={selectedRx}
+                form={dispenseForm}
+                onSelect={(id) => void handleSelectPrescription(id)}
+                onFormChange={(patch) => setDispenseForm((prev) => ({ ...prev, ...patch }))}
+                onDispense={handleDispenseAction}
+              />
+            )}
+            {sections.handover && (
+              <ProtocolHandover
+                batches={handoverBatches}
+                onToggle={(id, field) =>
+                  setHandoverBatches((prev) =>
+                    prev.map((batch) =>
+                      batch.id === id && typeof batch[field] === "boolean"
+                        ? { ...batch, [field]: !batch[field] }
+                        : batch
+                    )
                   )
-                )
-              }
-              onNotesChange={(id, notes) =>
-                setHandoverBatches((prev) =>
-                  prev.map((batch) =>
-                    batch.id === id ? { ...batch, counsellingNotes: notes } : batch
+                }
+                onNotesChange={(id, notes) =>
+                  setHandoverBatches((prev) =>
+                    prev.map((batch) =>
+                      batch.id === id ? { ...batch, counsellingNotes: notes } : batch
+                    )
                   )
-                )
-              }
-              onSubmitHandover={handleSubmitProtocolHandover}
-              isSubmitting={isSubmitting}
-            />
+                }
+                onSubmitHandover={handleSubmitProtocolHandover}
+                isSubmitting={isSubmitting}
+              />
+            )}
+            {!sections.dispense && !sections.handover && !sections.lab && (
+              <p className="text-sm text-gray-500">No pharmacy panels for this role.</p>
+            )}
           </div>
-          <div className="lg:col-span-1">
-            <LabRequestsPanel
-              requests={labRequests}
-              selectedId={selectedLab}
-              draft={labDraft}
-              completedCount={completedLabCount}
-              onSelect={(id) => void handleSelectLab(id)}
-              onStart={(id) =>
-                setLabRequests((prev) =>
-                  prev.map((req) => (req.id === id ? { ...req, status: "PROCESSING" } : req))
-                )
-              }
-              onDraftChange={(patch) => setLabDraft((prev) => ({ ...prev, ...patch }))}
-              onSubmitResult={handleSubmitLabResult}
-            />
-          </div>
+          {sections.lab && (
+            <div className="lg:col-span-1">
+              <LabRequestsPanel
+                requests={labRequests}
+                selectedId={selectedLab}
+                draft={labDraft}
+                completedCount={completedLabCount}
+                onSelect={(id) => void handleSelectLab(id)}
+                onStart={(id) =>
+                  setLabRequests((prev) =>
+                    prev.map((req) => (req.id === id ? { ...req, status: "PROCESSING" } : req))
+                  )
+                }
+                onDraftChange={(patch) => setLabDraft((prev) => ({ ...prev, ...patch }))}
+                onSubmitResult={handleSubmitLabResult}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

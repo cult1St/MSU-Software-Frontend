@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, FormEvent } from "react";
-import { Clock, Download, Pill, RefreshCw } from "lucide-react";
+import { Clock, Download, Pill, RefreshCw, Users } from "lucide-react";
 import { toast } from "react-toastify";
 import { PageHeader } from "@src/components/ui/page-header";
 import { Button } from "@src/components/ui/button";
@@ -15,13 +15,16 @@ import {
   TableHeader,
   TableRow,
 } from "@src/components/ui/table";
+import type { ApiStaffRole } from "@src/dto/auth";
 import type { DrugRegisterEntry, ServiceWindow } from "@src/dto/operations";
+import type { StaffMember } from "@src/dto/staff";
 import operationsService from "@src/services/operations.service";
+import staffService from "@src/services/staff.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
 import {
+  getSessionStaffId,
   getStaffId,
   isUuid,
-  setStaffId,
   toAspNetDate,
   toAspNetTime,
 } from "@src/utils/staff";
@@ -29,12 +32,31 @@ import {
   isServiceWindowOpen,
   serviceWindowLabel,
 } from "@src/utils/service-window";
+import { useAuth } from "@src/context/auth-context";
+
+const STAFF_ROLES: ApiStaffRole[] = [
+  "Doctor",
+  "Pharmacist",
+  "Nurse",
+  "Scientist",
+  "ProtocolOfficer",
+  "Registrar",
+  "DressingNurse",
+];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const emptyStaffForm = {
+  fullName: "",
+  email: "",
+  password: "",
+  role: "Nurse" as ApiStaffRole,
+};
+
 export default function AdminPage() {
+  const { staffId, user } = useAuth();
   const [drugs, setDrugs] = useState<DrugRegisterEntry[]>([]);
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
   const [windowError, setWindowError] = useState<string | null>(null);
@@ -42,13 +64,36 @@ export default function AdminPage() {
   const [date, setDate] = useState(todayIso());
   const [openTime, setOpenTime] = useState("08:00:00");
   const [closeTime, setCloseTime] = useState("16:00:00");
-  const [openedBy, setOpenedBy] = useState("");
   const [savingWindow, setSavingWindow] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setOpenedBy(getStaffId("registrar"));
-  }, []);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [staffRoleFilter, setStaffRoleFilter] = useState<ApiStaffRole | "">("");
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffForm, setStaffForm] = useState(emptyStaffForm);
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [staffFormError, setStaffFormError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const openedBy =
+    staffId || getSessionStaffId() || getStaffId("registrar") || "";
+  const openedByLabel =
+    user?.name || user?.fullName || user?.email || openedBy.slice(0, 8) || "—";
+
+  const loadStaff = useCallback(async () => {
+    setStaffLoading(true);
+    try {
+      const list = await staffService.list({
+        role: staffRoleFilter || undefined,
+      });
+      setStaffList(list || []);
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Unable to load staff"));
+      setStaffList([]);
+    } finally {
+      setStaffLoading(false);
+    }
+  }, [staffRoleFilter]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -88,6 +133,10 @@ export default function AdminPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    void loadStaff();
+  }, [loadStaff]);
+
   const handleExport = async () => {
     try {
       const blob = await operationsService.exportDrugRegister({
@@ -111,11 +160,10 @@ export default function AdminPage() {
     setFormError(null);
 
     if (!isUuid(openedBy)) {
-      setFormError("Enter a valid staff identity for who is opening the hours.");
+      setFormError("Sign in as Registrar so your staff ID can open consult hours.");
       return;
     }
 
-    setStaffId("registrar", openedBy);
     setSavingWindow(true);
     try {
       const open = toAspNetTime(openTime);
@@ -145,16 +193,70 @@ export default function AdminPage() {
     }
   };
 
+  const handleCreateStaff = async (e: FormEvent) => {
+    e.preventDefault();
+    setStaffFormError(null);
+
+    if (!staffForm.fullName.trim() || !staffForm.email.trim() || !staffForm.password) {
+      setStaffFormError("Full name, email, and password are required.");
+      return;
+    }
+
+    setCreatingStaff(true);
+    try {
+      await staffService.create({
+        fullName: staffForm.fullName.trim(),
+        email: staffForm.email.trim(),
+        password: staffForm.password,
+        role: staffForm.role,
+      });
+      toast.success(`${staffForm.role} account created`);
+      setStaffForm(emptyStaffForm);
+      await loadStaff();
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Unable to create staff");
+      setStaffFormError(message);
+      toast.error(message);
+    } finally {
+      setCreatingStaff(false);
+    }
+  };
+
+  const toggleStaffActive = async (member: StaffMember) => {
+    if (!member.id) return;
+    setTogglingId(member.id);
+    try {
+      await staffService.update(member.id, {
+        isActive: !(member.isActive !== false),
+      });
+      toast.success(
+        member.isActive === false ? "Staff activated" : "Staff deactivated"
+      );
+      await loadStaff();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Unable to update staff"));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const windowOpen = isServiceWindowOpen(windowInfo);
 
   return (
     <div className="w-full min-w-0 space-y-6">
       <PageHeader
         title="Administration"
-        description="Set cold-case consult hours and review the drug register after protocol handover"
+        description="Staff accounts, cold-case consult hours, and the drug register"
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void load();
+                void loadStaff();
+              }}
+            >
               <RefreshCw className="w-3.5 h-3.5" />
               Refresh
             </Button>
@@ -175,17 +277,10 @@ export default function AdminPage() {
           accent={windowOpen}
         />
         <KpiCard
-          label="Today’s window"
-          value={
-            <span className="block truncate text-2xl xl:text-3xl">
-              {windowInfo?.coldCaseOpenTime?.slice(0, 5) || "—"}
-              {windowInfo?.coldCaseCloseTime
-                ? `–${windowInfo.coldCaseCloseTime.slice(0, 5)}`
-                : ""}
-            </span>
-          }
-          hint={windowInfo?.date || "Not set for today"}
-          icon={Clock}
+          label="Staff accounts"
+          value={staffLoading ? "—" : String(staffList.length)}
+          hint={staffRoleFilter || "All roles"}
+          icon={Users}
         />
         <KpiCard
           label="Drug register"
@@ -194,6 +289,160 @@ export default function AdminPage() {
           icon={Pill}
         />
       </div>
+
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>Staff</CardTitle>
+        </CardHeader>
+        <div className="p-4 sm:p-5 space-y-5">
+          <form
+            onSubmit={handleCreateStaff}
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end"
+          >
+            <label className="space-y-1.5 min-w-0">
+              <span className="block uppercase text-surface-muted font-bold text-[10px] tracking-wide">
+                Full name
+              </span>
+              <input
+                value={staffForm.fullName}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({ ...prev, fullName: e.target.value }))
+                }
+                className="w-full h-10 border border-surface-border rounded-md px-3 text-sm bg-white"
+              />
+            </label>
+            <label className="space-y-1.5 min-w-0">
+              <span className="block uppercase text-surface-muted font-bold text-[10px] tracking-wide">
+                Email
+              </span>
+              <input
+                type="email"
+                value={staffForm.email}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+                className="w-full h-10 border border-surface-border rounded-md px-3 text-sm bg-white"
+              />
+            </label>
+            <label className="space-y-1.5 min-w-0">
+              <span className="block uppercase text-surface-muted font-bold text-[10px] tracking-wide">
+                Password
+              </span>
+              <input
+                type="password"
+                value={staffForm.password}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({ ...prev, password: e.target.value }))
+                }
+                className="w-full h-10 border border-surface-border rounded-md px-3 text-sm bg-white"
+              />
+            </label>
+            <label className="space-y-1.5 min-w-0">
+              <span className="block uppercase text-surface-muted font-bold text-[10px] tracking-wide">
+                Role
+              </span>
+              <select
+                value={staffForm.role}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({
+                    ...prev,
+                    role: e.target.value as ApiStaffRole,
+                  }))
+                }
+                className="w-full h-10 border border-surface-border rounded-md px-3 text-sm bg-white"
+              >
+                {STAFF_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="submit" size="sm" disabled={creatingStaff} className="h-10">
+              {creatingStaff ? "Creating..." : "Create staff"}
+            </Button>
+          </form>
+          {staffFormError && (
+            <p className="text-[#C62828] bg-red-50 border border-red-200 rounded-md p-3 text-xs">
+              {staffFormError}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-xs">
+              <span className="uppercase font-bold text-surface-muted tracking-wide">
+                Filter
+              </span>
+              <select
+                value={staffRoleFilter}
+                onChange={(e) =>
+                  setStaffRoleFilter((e.target.value as ApiStaffRole) || "")
+                }
+                className="h-9 border border-surface-border rounded-md px-2 text-sm bg-white"
+              >
+                <option value="">All roles</option>
+                {STAFF_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow className="border-0">
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {staffLoading && (
+                <TableRow>
+                  <TableCell colSpan={5}>Loading staff...</TableCell>
+                </TableRow>
+              )}
+              {!staffLoading && staffList.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>No staff accounts yet.</TableCell>
+                </TableRow>
+              )}
+              {staffList.map((member) => {
+                const active = member.isActive !== false;
+                return (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-semibold">
+                      {member.fullName || "—"}
+                    </TableCell>
+                    <TableCell>{member.email || "—"}</TableCell>
+                    <TableCell>{member.role || "—"}</TableCell>
+                    <TableCell>{active ? "Active" : "Inactive"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={togglingId === member.id}
+                        onClick={() => void toggleStaffActive(member)}
+                      >
+                        {togglingId === member.id
+                          ? "..."
+                          : active
+                            ? "Deactivate"
+                            : "Activate"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-5 items-start">
         <Card className="min-w-0">
@@ -252,17 +501,14 @@ export default function AdminPage() {
                 />
               </label>
             </div>
-            <label className="block space-y-1.5 min-w-0">
+            <div className="space-y-1.5 min-w-0">
               <span className="block uppercase text-surface-muted font-bold text-[10px] tracking-wide">
                 Opened by
               </span>
-              <input
-                value={openedBy}
-                onChange={(e) => setOpenedBy(e.target.value)}
-                placeholder="Staff identity"
-                className="w-full min-w-0 h-10 border border-surface-border rounded-md px-3 text-sm bg-white"
-              />
-            </label>
+              <p className="h-10 flex items-center px-3 text-sm border border-surface-border rounded-md bg-surface-muted/20 text-ink truncate">
+                {openedByLabel}
+              </p>
+            </div>
             <div className="flex justify-end pt-1">
               <Button
                 type="submit"

@@ -29,11 +29,15 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Auth is not available yet — do not force redirect on 401.
-    // Keep token cleanup only when a session was present.
     if (error.response?.status === 401 && typeof window !== "undefined") {
+      const hadToken = Boolean(sessionStorage.getItem("authToken"));
       sessionStorage.removeItem("authToken");
       sessionStorage.removeItem("authUser");
+      const path = window.location.pathname || "";
+      if (hadToken && path.startsWith("/in")) {
+        const next = encodeURIComponent(path + window.location.search);
+        window.location.href = `/sign-in?next=${next}`;
+      }
     }
     return Promise.reject(error);
   }

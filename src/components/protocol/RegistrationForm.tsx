@@ -10,7 +10,7 @@ import patientsService from "@src/services/patients.service";
 import encountersService from "@src/services/encounters.service";
 import operationsService from "@src/services/operations.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
-import { getStaffId, isUuid } from "@src/utils/staff";
+import { getStaffId, getSessionStaffId, isUuid } from "@src/utils/staff";
 
 const initialFormState: RegistrationFormData = {
   fullName: "",
@@ -125,10 +125,10 @@ export default function RegistrationForm() {
       return;
     }
 
-    const registrarId = getStaffId("registrar");
+    const registrarId = getStaffId("registrar") || getSessionStaffId();
     if (!isUuid(registrarId)) {
       const message =
-        "Cannot admit this patient — no duty registrar is configured. Ask an administrator to open today’s consult hours first.";
+        "Cannot admit this patient — sign in as a Registrar first.";
       setSubmitError(message);
       toast.error(message);
       setIsSubmitting(false);

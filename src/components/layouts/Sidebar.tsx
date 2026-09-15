@@ -18,6 +18,7 @@ import {
 import { useSidebar } from "@src/components/layouts/SidebarContext";
 import { useAuth } from "@src/context/auth-context";
 import { cn } from "@src/lib/utils";
+import { canSeeNavItem, normalizeStaffRole } from "@src/utils/roles";
 
 const navItems = [
   { name: "Dashboard", href: "/in", icon: LayoutDashboard },
@@ -31,7 +32,11 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { open, closeSidebar } = useSidebar();
-  const { logout } = useAuth();
+  const { logout, user, role } = useAuth();
+  const apiRole = normalizeStaffRole(role);
+  const showEmergency = apiRole === "Registrar" || apiRole === "Nurse";
+
+  const visibleNav = navItems.filter((item) => canSeeNavItem(role, item.href));
 
   return (
     <>
@@ -54,9 +59,16 @@ export default function Sidebar() {
           <div className="w-8 h-8 bg-brand-red rounded-md flex items-center justify-center shrink-0">
             <Cross className="w-4 h-4" />
           </div>
-          <div className="leading-tight">
+          <div className="leading-tight min-w-0">
             <div className="font-bold text-sm">The Gilead</div>
-            <div className="text-[10px] text-sidebar-muted">Medical Unit Portal</div>
+            <div className="text-[10px] text-sidebar-muted truncate">
+              {user?.name || user?.fullName || user?.email || "Medical Unit Portal"}
+            </div>
+            {apiRole && (
+              <div className="text-[9px] text-sidebar-muted uppercase tracking-wide mt-0.5">
+                {apiRole}
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -69,7 +81,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex flex-col gap-0.5 mt-1 flex-1">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||
@@ -95,23 +107,27 @@ export default function Sidebar() {
         </nav>
 
         <div className="flex flex-col gap-2 pt-3 border-t border-sidebar-border">
-          <Link
-            href="/in/protocol?mode=emergency"
-            onClick={closeSidebar}
-            className="bg-brand-red text-white rounded-lg py-2.5 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-brand-reddark transition-colors"
-          >
-            <Siren className="w-4 h-4" />
-            Emergency Entry
-          </Link>
+          {showEmergency && (
+            <Link
+              href="/in/protocol?mode=emergency"
+              onClick={closeSidebar}
+              className="bg-brand-red text-white rounded-lg py-2.5 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-brand-reddark transition-colors"
+            >
+              <Siren className="w-4 h-4" />
+              Emergency Entry
+            </Link>
+          )}
 
-          <Link
-            href="/in/admin"
-            onClick={closeSidebar}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] hover:bg-sidebar-hover"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </Link>
+          {apiRole === "Registrar" && (
+            <Link
+              href="/in/admin"
+              onClick={closeSidebar}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] hover:bg-sidebar-hover"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </Link>
+          )}
 
           <button
             type="button"

@@ -7,7 +7,7 @@ import type { AdmissionType, EncounterStatus } from "@src/dto/common";
 import type { ContactTraceDTO, Encounter } from "@src/dto/encounter";
 import encountersService from "@src/services/encounters.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
-import { requireStaffId } from "@src/utils/staff";
+import { getStaffId, isUuid } from "@src/utils/staff";
 
 const STATUS_OPTIONS: EncounterStatus[] = [
   "Registered",
@@ -101,8 +101,15 @@ export default function RecentRecords() {
     if (!selected) return;
     setSavingTrace(true);
     try {
+      const recordedBy =
+        getStaffId("protocolOfficer") || getStaffId("registrar");
+      if (!isUuid(recordedBy)) {
+        throw new Error(
+          "Sign in as Protocol Officer or Registrar to record a contact trace."
+        );
+      }
       const payload: ContactTraceDTO = {
-        recordedBy: requireStaffId("registrar", "recordedBy"),
+        recordedBy,
         nextOfKinName: traceForm.nextOfKinName || null,
         nextOfKinPhone: traceForm.nextOfKinPhone || null,
         nextOfKinRelationship: traceForm.nextOfKinRelationship || null,
