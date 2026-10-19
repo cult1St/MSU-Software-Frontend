@@ -36,11 +36,16 @@ function isEmergencyEncounter(item: Encounter) {
   return String(item.admissionType || "").toLowerCase().includes("emergency");
 }
 
+function encounterLabel(item: Encounter) {
+  return item.patientName || item.fullName || item.id.slice(0, 8);
+}
+
 export default function NursesStationPage() {
-  const { role } = useAuth();
+  const { role, staffId } = useAuth();
   const sections = nurseSections(role);
   const [bpQueue, setBpQueue] = useState<Encounter[]>([]);
   const [emergencyQueue, setEmergencyQueue] = useState<Encounter[]>([]);
+  const [openQueue, setOpenQueue] = useState<Encounter[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [patient, setPatient] = useState<PatientHeaderInfo | null>(null);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
@@ -52,26 +57,39 @@ export default function NursesStationPage() {
 
   const loadBoard = useCallback(async () => {
     try {
-      const [bp, admitted, inTreatment, emergencies] = await Promise.all([
-        encountersService.listByStatus("BpCheck").catch(() => []),
-        encountersService.listByStatus("Admitted").catch(() => []),
-        encountersService.listByStatus("InTreatment").catch(() => []),
-        encountersService.list({ type: "Emergency" }).catch(() => []),
-      ]);
-      const bpList = (bp || []).filter((item) => !isEmergencyEncounter(item));
-      const emergencyMap = new Map<string, Encounter>();
-      [...(admitted || []), ...(inTreatment || []), ...(emergencies || [])]
-        .filter(isEmergencyEncounter)
-        .forEach((item) => emergencyMap.set(item.id, item));
-      const emergencyList = Array.from(emergencyMap.values());
+      const [bp, admitted, inTreatment, registered, queued, emergencies] =
+        await Promise.all([
+          encountersService.listByStatus("BpCheck").catch(() => []),
+          encountersService.listByStatus("Admitted").catch(() => []),
+          encountersService.listByStatus("InTreatment").catch(() => []),
+          encountersService.listByStatus("Registered").catch(() => []),
+          encountersService.listByStatus("Queued").catch(() => []),
+          encountersService.list({ type: "Emergency" }).catch(() => []),
+        ]);
+      const merged = new Map<string, Encounter>();
+      [bp, admitted, inTreatment, registered, queued, emergencies]
+        .flat()
+        .forEach((item) => {
+          if (item?.id) merged.set(item.id, item);
+        });
+      const all = Array.from(merged.values()).filter(
+        (item) => item.status !== "Discharged" && item.status !== "Referred"
+      );
+      const bpList = all.filter(
+        (item) => item.status === "BpCheck" && !isEmergencyEncounter(item)
+      );
+      const emergencyList = all.filter((item) => isEmergencyEncounter(item));
+      const used = new Set(
+        [...bpList, ...emergencyList].map((item) => item.id)
+      );
+      const openList = all.filter((item) => !used.has(item.id));
       setBpQueue(bpList);
       setEmergencyQueue(emergencyList);
-      const first = bpList[0]?.id || emergencyList[0]?.id;
-      if (!selectedId && first) setSelectedId(first);
+      setOpenQueue(openList);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to load nurse board"));
     }
-  }, [selectedId]);
+  }, []);
 
   const loadDressing = useCallback(async () => {
     try {
@@ -175,10 +193,16 @@ export default function NursesStationPage() {
   }, [selectedId]);
 
   const handleSaveVitals = async () => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      toast.error("Select an encounter before recording vitals.");
+      return false;
+    }
     try {
+      const recordedBy = isUuid(staffId)
+        ? staffId
+        : requireStaffId("nurse", "recordedBy");
       await encountersService.recordVitals(selectedId, {
-        recordedBy: requireStaffId("nurse", "recordedBy"),
+        recordedBy,
         bloodPressureSystolic: toNumber(vitals.bloodPressureSystolic),
         bloodPressureDiastolic: toNumber(vitals.bloodPressureDiastolic),
         pulseRate: toNumber(vitals.pulseRate),
@@ -191,15 +215,21 @@ export default function NursesStationPage() {
       const history = await encountersService.getVitals(selectedId).catch(() => []);
       setVitalsHistory(history || []);
       toast.success("Vitals recorded");
+      return true;
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to record vitals"));
+      return false;
     }
   };
 
   const sendToDoctorQueue = async () => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      toast.error("Select an encounter before recording vitals.");
+      return;
+    }
     try {
-      await handleSaveVitals();
+      const saved = await handleSaveVitals();
+      if (!saved) return;
       await encountersService.updateStatus(selectedId, { status: "Queued" });
       await operationsService.joinQueue(selectedId);
       toast.success("BP recorded. Patient sent to the doctor queue.");
@@ -242,42 +272,63 @@ export default function NursesStationPage() {
 
   const isBpCase = encounter?.status === "BpCheck";
   const isEmergency = encounter ? isEmergencyEncounter(encounter) : false;
+  const boardGroups = [
+    { label: "BP desk (age over 40)", items: bpQueue },
+    { label: "Emergency ward", items: emergencyQueue },
+    { label: "Open encounters", items: openQueue },
+  ];
+  const boardEmpty = boardGroups.every((group) => group.items.length === 0);
 
   return (
     <div className="space-y-6 flex flex-col justify-between min-h-full">
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Nurses Station</h1>
-            <p className="text-xs text-surface-muted">
-              BP check for cold cases over 40, emergency vitals, and dressing / injection
+        <div>
+          <h1 className="text-xl font-bold">Nurses Station</h1>
+          <p className="text-xs text-surface-muted">
+            Record vitals here. Add new patients from Protocol in the sidebar.
+          </p>
+        </div>
+
+        <div className="bg-white border border-surface-border rounded-sm p-3 space-y-3">
+          <h2 className="text-[11px] font-bold uppercase tracking-wide text-surface-muted">
+            Select encounter
+          </h2>
+          {boardEmpty && (
+            <p className="text-xs text-gray-400">
+              No open encounters yet. Open Protocol to register a patient, then refresh this board.
             </p>
-          </div>
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="border border-surface-border rounded-lg px-3 py-2 text-sm bg-white min-w-[240px]"
-          >
-            <option value="">Select encounter</option>
-            {bpQueue.length > 0 && (
-              <optgroup label="BP desk (age over 40)">
-                {bpQueue.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {(item.patientName || item.fullName || item.id.slice(0, 8)) + " · BP"}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {emergencyQueue.length > 0 && (
-              <optgroup label="Emergency ward">
-                {emergencyQueue.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {(item.patientName || item.fullName || item.id.slice(0, 8)) + " · Emergency"}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
+          )}
+          {boardGroups.map((group) =>
+            group.items.length === 0 ? null : (
+              <div key={group.label} className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  {group.label}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {group.items.map((item) => {
+                    const active = selectedId === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedId(item.id)}
+                        className={`text-left text-xs px-2.5 py-1.5 rounded-sm border ${
+                          active
+                            ? "border-[#C62828] bg-red-50 text-[#C62828] font-bold"
+                            : "border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {encounterLabel(item)}
+                        <span className="block text-[10px] font-medium text-gray-400">
+                          {item.status || "Open"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          )}
         </div>
 
         <PatientBanner patient={patient || undefined} />
@@ -287,8 +338,9 @@ export default function NursesStationPage() {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
+                disabled={!selectedId}
                 onClick={() => void handleSaveVitals()}
-                className="px-4 py-2 text-xs font-bold uppercase border border-gray-300 rounded-sm hover:bg-gray-50"
+                className="px-4 py-2 text-xs font-bold uppercase border border-gray-300 rounded-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Record vitals
               </button>

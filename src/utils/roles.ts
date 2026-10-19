@@ -65,6 +65,7 @@ export function stationsForRole(role?: string | null): string[] {
     case "Registrar":
       return ["/in", "/in/protocol", "/in/admin"];
     case "Nurse":
+      return ["/in", "/in/nurses", "/in/protocol"];
     case "DressingNurse":
       return ["/in", "/in/nurses"];
     case "Doctor":
@@ -122,7 +123,7 @@ export function nurseSections(role?: string | null): {
     return { vitals: false, dressing: true };
   }
   if (api === "Nurse") {
-    return { vitals: true, dressing: true };
+    return { vitals: true, dressing: false };
   }
   return { vitals: true, dressing: true };
 }
