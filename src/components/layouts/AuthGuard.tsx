@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@src/context/auth-context";
 import { canAccessRoute, homeRouteForRole } from "@src/utils/roles";
+import AppLoader from "@src/components/ui/AppLoader";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, role } = useAuth();
@@ -22,27 +23,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, isLoading, pathname, role, router]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-surface-muted">
-        Authenticating session...
-      </div>
-    );
+    return <AppLoader label="Authenticating session" />;
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-surface-muted">
-        Redirecting to sign in...
-      </div>
-    );
+    return <AppLoader label="Redirecting to sign in" />;
   }
 
   if (!canAccessRoute(role, pathname || "/in")) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-surface-muted">
-        Redirecting to your station...
-      </div>
-    );
+    return <AppLoader label="Redirecting to your station" />;
   }
 
   return <>{children}</>;

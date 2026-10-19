@@ -7,6 +7,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "The Gilead - God heals",
   description: "A medical services managemnet solution",
+  icons: {
+    icon: [{ url: "/logo/logo.png", type: "image/png" }],
+    shortcut: "/logo/logo.png",
+    apple: "/logo/logo.png",
+  },
 };
 
 export default function RootLayout({

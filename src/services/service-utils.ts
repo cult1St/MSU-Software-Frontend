@@ -19,26 +19,41 @@ export function unwrapData<T>(payload: unknown): T {
   return payload as T;
 }
 
-export function asList<T>(payload: unknown): T[] {
-  const data = unwrapData<unknown>(payload);
-  if (Array.isArray(data)) return data as T[];
-  if (data && typeof data === "object") {
-    const record = data as UnknownRecord;
-    for (const key of [
-      "items",
-      "results",
-      "records",
-      "queue",
-      "prescriptions",
-      "requests",
-      "orders",
-      "encounters",
-      "staff",
-    ]) {
-      if (Array.isArray(record[key])) return record[key] as T[];
-    }
+const LIST_KEYS = [
+  "items",
+  "results",
+  "records",
+  "queue",
+  "prescriptions",
+  "requests",
+  "orders",
+  "encounters",
+  "vitals",
+  "vitalSigns",
+  "staff",
+  "$values",
+  "value",
+  "data",
+];
+
+function extractList(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+
+  const record = data as UnknownRecord;
+  for (const key of LIST_KEYS) {
+    if (Array.isArray(record[key])) return record[key] as unknown[];
   }
+
+  if ("data" in record && record.data && record.data !== data) {
+    return extractList(record.data);
+  }
+
   return [];
+}
+
+export function asList<T>(payload: unknown): T[] {
+  return extractList(unwrapData<unknown>(payload)) as T[];
 }
 
 export function asSuccess<T>(payload: unknown): SuccessResponse<T> {

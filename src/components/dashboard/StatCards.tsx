@@ -12,12 +12,19 @@ import encountersService from "@src/services/encounters.service";
 import operationsService from "@src/services/operations.service";
 import pharmacyService from "@src/services/pharmacy.service";
 import labService from "@src/services/lab.service";
+import { useAuth } from "@src/context/auth-context";
+import { normalizeStaffRole } from "@src/utils/roles";
 
 function isEmergencyType(value?: string) {
   return String(value || "").toLowerCase().includes("emergency");
 }
 
 export default function StatCards() {
+  const { role } = useAuth();
+  const apiRole = normalizeStaffRole(role);
+  const canPharmacy = apiRole === "Pharmacist" || apiRole === "ProtocolOfficer";
+  const canLab = apiRole === "Scientist" || apiRole === "Pharmacist";
+
   const [emergency, setEmergency] = useState("—");
   const [queued, setQueued] = useState("—");
   const [inConsult, setInConsult] = useState("—");
@@ -33,8 +40,12 @@ export default function StatCards() {
           operationsService.getQueue().catch(() => []),
           encountersService.list({ status: "InConsultation" }).catch(() => []),
           encountersService.list({ status: "PharmacyPending" }).catch(() => []),
-          pharmacyService.listPrescriptions({ status: "Pending" }).catch(() => []),
-          labService.listRequests({ status: "Pending" }).catch(() => []),
+          canPharmacy
+            ? pharmacyService.listPrescriptions({ status: "Pending" }).catch(() => [])
+            : Promise.resolve([]),
+          canLab
+            ? labService.listRequests({ status: "Pending" }).catch(() => [])
+            : Promise.resolve([]),
         ]);
 
       if (!active) return;
@@ -57,7 +68,7 @@ export default function StatCards() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canPharmacy, canLab]);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -83,7 +94,11 @@ export default function StatCards() {
       <KpiCard
         label="Pharma/Lab Hub"
         value={pharmacy}
-        hint="Patients in processing"
+        hint={
+          canPharmacy || canLab
+            ? "Patients in processing"
+            : "Encounter queue counts only"
+        }
         icon={FlaskConical}
       />
     </div>

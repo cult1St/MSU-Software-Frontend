@@ -125,10 +125,13 @@ export default function RegistrationForm() {
       return;
     }
 
-    const registrarId = getStaffId("registrar") || getSessionStaffId();
-    if (!isUuid(registrarId)) {
+    const registeredBy =
+      getSessionStaffId() ||
+      getStaffId("registrar") ||
+      getStaffId("nurse");
+    if (!isUuid(registeredBy)) {
       const message =
-        "Cannot admit this patient — sign in as a Registrar first.";
+        "Cannot admit this patient — sign in as a Registrar or Nurse first.";
       setSubmitError(message);
       toast.error(message);
       setIsSubmitting(false);
@@ -166,7 +169,7 @@ export default function RegistrationForm() {
               : formData.arrivalMode
             : "WalkedIn",
           chiefComplaint: formData.chiefComplaint,
-          registeredBy: registrarId,
+          registeredBy,
         });
 
         if (!encounter?.id) {

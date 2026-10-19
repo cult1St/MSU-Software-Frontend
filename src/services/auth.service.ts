@@ -14,7 +14,8 @@ function asRecord(value: unknown): AuthRecord | undefined {
 
 function normalizeUser(raw: AuthRecord | undefined): AuthUser | null {
   if (!raw) return null;
-  const id = raw.id != null ? String(raw.id) : undefined;
+  const idValue = raw.id ?? raw.staffId ?? raw.userId ?? raw.Id ?? raw.StaffId;
+  const id = idValue != null && idValue !== "" ? String(idValue) : undefined;
   const fullName =
     (raw.fullName as string | undefined) ||
     (raw.name as string | undefined) ||

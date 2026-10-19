@@ -4,11 +4,20 @@ import { Suspense, useEffect, useState } from "react";
 import RegistrationForm from "@src/components/protocol/RegistrationForm";
 import RecentRecords from "@src/components/protocol/RecentRecords";
 import WaitlistTerminal from "@src/components/protocol/WaitlistTerminal";
+import AppLoader from "@src/components/ui/AppLoader";
 import operationsService from "@src/services/operations.service";
 import type { ServiceWindow } from "@src/dto/operations";
 import { isServiceWindowOpen, serviceWindowLabel } from "@src/utils/service-window";
+import { useAuth } from "@src/context/auth-context";
+import { normalizeStaffRole } from "@src/utils/roles";
 
 export default function ProtocolPage() {
+  const { role } = useAuth();
+  const apiRole = normalizeStaffRole(role);
+  const canRegister = apiRole === "Registrar" || apiRole === "Nurse";
+  const canTrace =
+    apiRole === "Registrar" || apiRole === "ProtocolOfficer" || apiRole === "Nurse";
+
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
 
   useEffect(() => {
@@ -28,7 +37,9 @@ export default function ProtocolPage() {
             Protocol & Registration Desk
           </h1>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
-            Unit 04: Central Medical Processing
+            {canRegister
+              ? "Register patients and open encounters"
+              : "Contact trace and handover follow-up"}
           </p>
         </div>
         <div
@@ -46,10 +57,24 @@ export default function ProtocolPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
-          <Suspense fallback={<div className="bg-white border p-5 text-xs text-gray-400">Loading registration…</div>}>
-            <RegistrationForm />
-          </Suspense>
-          <RecentRecords />
+          {canRegister ? (
+            <Suspense
+              fallback={
+                <AppLoader
+                  label="Loading registration"
+                  className="min-h-[14rem] rounded-xl border border-surface-border bg-white"
+                />
+              }
+            >
+              <RegistrationForm />
+            </Suspense>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-sm p-4 text-xs text-gray-500">
+              Patient registration is limited to Registrar and Nurse accounts.
+              Use recent records below for contact tracing and handover notes.
+            </div>
+          )}
+          {canTrace && <RecentRecords />}
         </div>
         <div className="lg:col-span-1">
           <WaitlistTerminal />

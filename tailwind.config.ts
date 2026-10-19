@@ -77,6 +77,26 @@ export default {
       fontSize: {
         "portal": ["13px", { lineHeight: "1.4" }],
       },
+      keyframes: {
+        "brand-pop": {
+          "0%, 100%": { transform: "scale(0.86)", opacity: "0.75" },
+          "45%": { transform: "scale(1.08)", opacity: "1" },
+          "70%": { transform: "scale(0.96)", opacity: "0.95" },
+        },
+        "brand-ring": {
+          "0%, 100%": { transform: "scale(0.9)", opacity: "0.35" },
+          "50%": { transform: "scale(1.25)", opacity: "0" },
+        },
+        "brand-dot": {
+          "0%, 80%, 100%": { transform: "translateY(0)", opacity: "0.35" },
+          "40%": { transform: "translateY(-4px)", opacity: "1" },
+        },
+      },
+      animation: {
+        "brand-pop": "brand-pop 1.35s ease-in-out infinite",
+        "brand-ring": "brand-ring 1.35s ease-out infinite",
+        "brand-dot": "brand-dot 1.1s ease-in-out infinite",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
