@@ -1,4 +1,19 @@
 import type { ServiceWindow } from "@src/dto/operations";
+import operationsService from "@src/services/operations.service";
+
+export type ServiceWindowAccess = "loading" | "ready" | "denied";
+
+export async function readServiceWindow(): Promise<{
+  access: Exclude<ServiceWindowAccess, "loading">;
+  window: ServiceWindow | null;
+}> {
+  try {
+    const window = await operationsService.getServiceWindow();
+    return { access: "ready", window: window ?? null };
+  } catch {
+    return { access: "denied", window: null };
+  }
+}
 
 function parseClock(value?: string | null): number | null {
   if (!value) return null;
@@ -25,7 +40,7 @@ export function isServiceWindowOpen(windowInfo?: ServiceWindow | null): boolean 
 }
 
 export function serviceWindowLabel(windowInfo?: ServiceWindow | null): string {
-  if (!windowInfo) return "Window unknown";
+  if (!windowInfo) return "No window set";
   const open = windowInfo.coldCaseOpenTime || windowInfo.opensAt;
   const close = windowInfo.coldCaseCloseTime || windowInfo.closesAt;
   if (open && close) return `${open.slice(0, 8)} – ${close.slice(0, 8)}`;

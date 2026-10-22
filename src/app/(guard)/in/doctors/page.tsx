@@ -22,10 +22,13 @@ import type {
 } from "@src/types/consultation";
 import encountersService from "@src/services/encounters.service";
 import labService from "@src/services/lab.service";
-import operationsService from "@src/services/operations.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
 import { requireStaffId } from "@src/utils/staff";
-import { isServiceWindowOpen } from "@src/utils/service-window";
+import {
+  isServiceWindowOpen,
+  readServiceWindow,
+  type ServiceWindowAccess,
+} from "@src/utils/service-window";
 
 const initialSoap: SoapNotes = {
   subjective: "",
@@ -73,6 +76,7 @@ export default function DoctorsPage() {
   const [vitals, setVitals] = useState<EncounterVitals | null>(null);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
+  const [windowAccess, setWindowAccess] = useState<ServiceWindowAccess>("loading");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [soapNotes, setSoapNotes] = useState<SoapNotes>(initialSoap);
@@ -86,21 +90,26 @@ export default function DoctorsPage() {
   });
   const [referral, setReferral] = useState<ReferralFlags>(emptyReferral);
 
-  const windowOpen = isServiceWindowOpen(windowInfo);
+  const confirmedClosed =
+    windowAccess === "ready" && !isServiceWindowOpen(windowInfo);
+  const windowOpen = !confirmedClosed;
 
   const load = useCallback(async () => {
     setIsLoading(true);
+    const windowPromise = readServiceWindow().then((currentWindow) => {
+      setWindowInfo(currentWindow.window);
+      setWindowAccess(currentWindow.access);
+    });
     try {
-      const [emergencies, admitted, inTreatment, queued, inConsult, currentWindow] =
+      const [emergencies, admitted, inTreatment, queued, inConsult] =
         await Promise.all([
           encountersService.list({ type: "Emergency" }).catch(() => []),
           encountersService.listByStatus("Admitted").catch(() => []),
           encountersService.listByStatus("InTreatment").catch(() => []),
           encountersService.listByStatus("Queued").catch(() => []),
           encountersService.listByStatus("InConsultation").catch(() => []),
-          operationsService.getServiceWindow().catch(() => null),
         ]);
-      setWindowInfo(currentWindow);
+      void windowPromise;
       setEmergencyBoard(
         mergeEncounters([emergencies || [], admitted || [], inTreatment || []]).filter(
           isEmergencyEncounter

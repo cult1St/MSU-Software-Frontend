@@ -31,7 +31,7 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { open, closeSidebar } = useSidebar();
+  const { open, closeSidebar, beginNavigation } = useSidebar();
   const { logout, user, role } = useAuth();
   const apiRole = normalizeStaffRole(role);
   const showEmergency = apiRole === "Registrar" || apiRole === "Nurse";
@@ -91,7 +91,18 @@ export default function Sidebar() {
               <Link
                 key={item.name}
                 href={item.href}
-                onClick={closeSidebar}
+                onClick={(event) => {
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+                  beginNavigation(item.href);
+                  closeSidebar();
+                }}
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] transition-colors",
                   isActive
@@ -110,7 +121,18 @@ export default function Sidebar() {
           {showEmergency && (
             <Link
               href="/in/protocol?mode=emergency"
-              onClick={closeSidebar}
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                beginNavigation("/in/protocol?mode=emergency");
+                closeSidebar();
+              }}
               className="bg-brand-red text-white rounded-lg py-2.5 text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-brand-reddark transition-colors"
             >
               <Siren className="w-4 h-4" />
@@ -121,7 +143,18 @@ export default function Sidebar() {
           {apiRole === "Registrar" && (
             <Link
               href="/in/admin"
-              onClick={closeSidebar}
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                beginNavigation("/in/admin");
+                closeSidebar();
+              }}
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] hover:bg-sidebar-hover"
             >
               <Settings className="w-4 h-4" />
