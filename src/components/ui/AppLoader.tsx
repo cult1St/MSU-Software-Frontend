@@ -5,12 +5,14 @@ type AppLoaderProps = {
   className?: string;
   label?: string;
   fullScreen?: boolean;
+  showLabel?: boolean;
 };
 
 export default function AppLoader({
   className,
   label = "Loading",
   fullScreen = false,
+  showLabel = false,
 }: AppLoaderProps) {
   return (
     <div
@@ -36,7 +38,11 @@ export default function AppLoader({
         <span className="h-1.5 w-1.5 rounded-full bg-brand-red animate-brand-dot [animation-delay:320ms]" />
       </div>
 
-      <span className="sr-only">{label}</span>
+      {showLabel ? (
+        <span className="text-xs font-medium text-surface-muted">{label}</span>
+      ) : (
+        <span className="sr-only">{label}</span>
+      )}
     </div>
   );
 }

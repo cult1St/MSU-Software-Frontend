@@ -9,7 +9,11 @@ import type { QueueEntry, QueuePosition, ServiceWindow } from "@src/dto/operatio
 import operationsService from "@src/services/operations.service";
 import encountersService from "@src/services/encounters.service";
 import { getApiErrorMessage } from "@src/utils/api-error";
-import { isServiceWindowOpen } from "@src/utils/service-window";
+import {
+  isServiceWindowOpen,
+  readServiceWindow,
+  type ServiceWindowAccess,
+} from "@src/utils/service-window";
 
 function entryId(item: QueueEntry) {
   return item.encounterId || item.id || "";
@@ -32,13 +36,14 @@ export default function WaitlistTerminal() {
   const [selectedId, setSelectedId] = useState("");
   const [position, setPosition] = useState<QueuePosition | null>(null);
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
+  const [windowAccess, setWindowAccess] = useState<ServiceWindowAccess>("loading");
 
   const loadQueue = useCallback(async () => {
     setIsLoading(true);
     try {
       const [data, currentWindow, bpRows] = await Promise.all([
         operationsService.getQueue().catch(() => []),
-        operationsService.getServiceWindow().catch(() => null),
+        readServiceWindow(),
         encountersService.listByStatus("BpCheck").catch(() => []),
       ]);
       const rows = Array.isArray(data) ? data : [];
@@ -51,7 +56,8 @@ export default function WaitlistTerminal() {
               .includes("emergency")
         )
       );
-      setWindowInfo(currentWindow);
+      setWindowInfo(currentWindow.window);
+      setWindowAccess(currentWindow.access);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to load waitlist"));
     } finally {
@@ -82,13 +88,15 @@ export default function WaitlistTerminal() {
     };
   }, [selectedId]);
 
-  const windowOpen = isServiceWindowOpen(windowInfo);
+  const windowOpen = windowAccess === "ready" && isServiceWindowOpen(windowInfo);
+  const hoursHidden = windowAccess !== "ready";
+  const canSendToConsultation = windowAccess === "denied" || windowOpen;
   const activeCount = queue.length + bpQueue.length;
 
   const handleSendToConsultation = async (item: QueueEntry) => {
     const id = entryId(item);
     if (!id) return;
-    if (!windowOpen) {
+    if (!canSendToConsultation) {
       toast.error("Cold-case consultation window is closed.");
       return;
     }
@@ -122,12 +130,20 @@ export default function WaitlistTerminal() {
         <div className="p-4 space-y-5">
           <div
             className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm border ${
-              windowOpen
-                ? "bg-green-50 text-green-800 border-green-200"
-                : "bg-amber-50 text-amber-800 border-amber-200"
+              hoursHidden
+                ? "bg-gray-50 text-gray-700 border-gray-200"
+                : windowOpen
+                  ? "bg-green-50 text-green-800 border-green-200"
+                  : "bg-amber-50 text-amber-800 border-amber-200"
             }`}
           >
-            {windowOpen ? "Consult window open" : "Consult window closed"}
+            {windowAccess === "loading"
+              ? "Checking consult hours"
+              : windowAccess === "denied"
+                ? "Consult hours are set by the Registrar"
+                : windowOpen
+                  ? "Consult window open"
+                  : "Consult window closed"}
           </div>
 
           <div className="space-y-2">
@@ -205,7 +221,7 @@ export default function WaitlistTerminal() {
                   <div className="flex gap-2 justify-end">
                     <button
                       type="button"
-                      disabled={!windowOpen}
+                      disabled={!canSendToConsultation}
                       onClick={() => void handleSendToConsultation(item)}
                       className="rounded-sm tracking-wide uppercase text-[10px] font-bold bg-[#5A5A5A] hover:bg-black text-white px-2.5 py-1 disabled:bg-gray-300 disabled:cursor-not-allowed"
                     >

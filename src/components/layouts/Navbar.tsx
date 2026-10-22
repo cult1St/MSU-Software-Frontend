@@ -20,7 +20,7 @@ const topTabs = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { openSidebar } = useSidebar();
+  const { openSidebar, beginNavigation } = useSidebar();
 
   const isTabActive = (href: string) => {
     if (href === "/in") return pathname === "/in";
@@ -53,6 +53,17 @@ export default function Navbar() {
               <Link
                 key={tab.name}
                 href={tab.href}
+                onClick={(event) => {
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+                  beginNavigation(tab.href);
+                }}
                 className={cn(
                   "pb-4 -mb-4 border-b-2 border-transparent transition-colors",
                   active

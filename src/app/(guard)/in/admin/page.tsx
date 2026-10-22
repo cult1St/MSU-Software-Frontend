@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, FormEvent } from "react";
 import { Clock, Download, Pill, RefreshCw, Users } from "lucide-react";
 import { toast } from "react-toastify";
+import AppLoader from "@src/components/ui/AppLoader";
 import { PageHeader } from "@src/components/ui/page-header";
 import { Button } from "@src/components/ui/button";
 import { KpiCard } from "@src/components/ui/kpi-card";
@@ -61,6 +62,7 @@ export default function AdminPage() {
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
   const [windowError, setWindowError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [date, setDate] = useState(todayIso());
   const [openTime, setOpenTime] = useState("08:00:00");
   const [closeTime, setCloseTime] = useState("16:00:00");
@@ -126,6 +128,7 @@ export default function AdminPage() {
       toast.error(getApiErrorMessage(error, "Unable to load administration data"));
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, []);
 
@@ -241,6 +244,16 @@ export default function AdminPage() {
   };
 
   const windowOpen = isServiceWindowOpen(windowInfo);
+
+  if (!hasLoaded) {
+    return (
+      <AppLoader
+        label="Loading administration"
+        showLabel
+        className="min-h-[70vh]"
+      />
+    );
+  }
 
   return (
     <div className="w-full min-w-0 space-y-6">

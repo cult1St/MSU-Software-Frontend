@@ -6,11 +6,15 @@ import RegistrationForm from "@src/components/protocol/RegistrationForm";
 import RecentRecords from "@src/components/protocol/RecentRecords";
 import WaitlistTerminal from "@src/components/protocol/WaitlistTerminal";
 import AppLoader from "@src/components/ui/AppLoader";
-import operationsService from "@src/services/operations.service";
 import pharmacyService from "@src/services/pharmacy.service";
 import type { ProtocolHandover } from "@src/dto/pharmacy";
 import type { ServiceWindow } from "@src/dto/operations";
-import { isServiceWindowOpen, serviceWindowLabel } from "@src/utils/service-window";
+import {
+  isServiceWindowOpen,
+  readServiceWindow,
+  serviceWindowLabel,
+  type ServiceWindowAccess,
+} from "@src/utils/service-window";
 import { useAuth } from "@src/context/auth-context";
 import { normalizeStaffRole } from "@src/utils/roles";
 
@@ -77,20 +81,27 @@ export default function ProtocolPage() {
   const canTrace = apiRole === "Registrar" || apiRole === "Nurse";
 
   const [windowInfo, setWindowInfo] = useState<ServiceWindow | null>(null);
+  const [windowAccess, setWindowAccess] = useState<ServiceWindowAccess>("loading");
 
   useEffect(() => {
     if (apiRole === "ProtocolOfficer") return;
-    operationsService
-      .getServiceWindow()
-      .then(setWindowInfo)
-      .catch(() => setWindowInfo(null));
+    let active = true;
+    readServiceWindow().then((result) => {
+      if (!active) return;
+      setWindowInfo(result.window);
+      setWindowAccess(result.access);
+    });
+    return () => {
+      active = false;
+    };
   }, [apiRole]);
 
   if (apiRole === "ProtocolOfficer") {
     return <ProtocolOfficerDesk />;
   }
 
-  const open = isServiceWindowOpen(windowInfo);
+  const open = windowAccess === "ready" && isServiceWindowOpen(windowInfo);
+  const hoursHidden = windowAccess !== "ready";
 
   return (
     <div className="space-y-6">
@@ -107,14 +118,30 @@ export default function ProtocolPage() {
         </div>
         <div
           className={`inline-flex items-center gap-1.5 border px-3 py-1 rounded text-[11px] font-bold self-start sm:self-center ${
-            open
-              ? "bg-green-50 border-green-200 text-green-800"
-              : "bg-amber-50 border-amber-200 text-amber-800"
+            hoursHidden
+              ? "bg-gray-50 border-gray-200 text-gray-700"
+              : open
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-amber-50 border-amber-200 text-amber-800"
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${open ? "bg-green-600" : "bg-amber-500"}`} />
-          {open ? "Cold-case window open" : "Cold-case window closed"}
-          <span className="font-medium text-[10px] ml-1">{serviceWindowLabel(windowInfo)}</span>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              hoursHidden ? "bg-gray-400" : open ? "bg-green-600" : "bg-amber-500"
+            }`}
+          />
+          {windowAccess === "loading"
+            ? "Checking consult hours"
+            : windowAccess === "denied"
+              ? "Consult hours are set by the Registrar"
+              : open
+                ? "Cold-case window open"
+                : "Cold-case window closed"}
+          {windowAccess === "ready" && (
+            <span className="font-medium text-[10px] ml-1">
+              {serviceWindowLabel(windowInfo)}
+            </span>
+          )}
         </div>
       </div>
 
