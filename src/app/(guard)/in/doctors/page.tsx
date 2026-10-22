@@ -236,7 +236,12 @@ export default function DoctorsPage() {
         });
       }
 
-      const namedRx = prescriptions.filter((rx) => rx.name);
+      const namedRx = prescriptions.filter((rx) => rx.name.trim());
+      if (prescriptions.length > 0 && namedRx.length === 0) {
+        toast.error("Enter a medication name. Pharmacy only receives named drugs.");
+        setIsSubmitting(false);
+        return;
+      }
       await encountersService.createConsultation(selectedId, {
         doctorId: requireStaffId("doctor", "doctorId"),
         diagnosis: [soapNotes.assessment || "Clinical review"].filter(Boolean),
@@ -280,7 +285,13 @@ export default function DoctorsPage() {
         );
       }
 
-      toast.success("Consultation finalized. Pharmacy is next if drugs were ordered.");
+      toast.success(
+        namedRx.length
+          ? "Consultation saved. Sign in as Pharmacist to dispense the prescription."
+          : labTests.length
+            ? "Consultation saved. Lab orders were sent. No drug was prescribed."
+            : "Consultation saved."
+      );
       setSelectedId("");
       setPatientHeader(null);
       void load();

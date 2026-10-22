@@ -23,6 +23,13 @@ interface WorkspaceProps {
 
 const ROUTES: DrugRoute[] = ["Oral", "IV", "IM", "Topical"];
 
+const LAB_ORDERS = [
+  { key: "cbc", label: "Complete Blood Count (CBC)" },
+  { key: "lipidProfile", label: "Lipid Profile" },
+  { key: "ecg12Lead", label: "12-Lead ECG" },
+  { key: "kft", label: "Kidney Function Test (KFT)" },
+] as const;
+
 export default function ConsultationWorkspace({
   soapNotes,
   onSoapNotesChange,
@@ -157,43 +164,31 @@ export default function ConsultationWorkspace({
             <Beaker size={14} /> Lab & Diagnostic Orders
           </div>
           <div className="p-4 space-y-4 text-xs">
+            <p className="text-[11px] font-medium text-gray-500">
+              Fixed order list on this screen. Checked tests are saved with Finalize Consultation and appear for the scientist. They are not loaded from a lab catalog.
+            </p>
             <div className="grid grid-cols-2 gap-3 font-semibold text-gray-800">
-              <label className="flex items-center gap-2.5 p-2 border border-gray-200 rounded-sm cursor-pointer hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={diagnostics.cbc}
-                  onChange={() => onDiagnosticToggle("cbc")}
-                  className="accent-[#C62828] w-3.5 h-3.5"
-                />
-                <span>Complete Blood Count (CBC)</span>
-              </label>
-              <label className="flex items-center gap-2.5 p-2 border border-gray-200 rounded-sm cursor-pointer hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={diagnostics.lipidProfile}
-                  onChange={() => onDiagnosticToggle("lipidProfile")}
-                  className="accent-[#C62828] w-3.5 h-3.5"
-                />
-                <span>Lipid Profile</span>
-              </label>
-              <label className={`flex items-center gap-2.5 p-2 border rounded-sm cursor-pointer ${diagnostics.ecg12Lead ? "bg-[#C62828] text-white border-transparent" : "border-gray-200 hover:bg-gray-50"}`}>
-                <input
-                  type="checkbox"
-                  checked={diagnostics.ecg12Lead}
-                  onChange={() => onDiagnosticToggle("ecg12Lead")}
-                  className="accent-white w-3.5 h-3.5"
-                />
-                <span>12-Lead ECG</span>
-              </label>
-              <label className={`flex items-center gap-2.5 p-2 border rounded-sm cursor-pointer ${diagnostics.kft ? "bg-[#C62828] text-white border-transparent" : "border-gray-200 hover:bg-gray-50"}`}>
-                <input
-                  type="checkbox"
-                  checked={diagnostics.kft}
-                  onChange={() => onDiagnosticToggle("kft")}
-                  className="accent-white w-3.5 h-3.5"
-                />
-                <span>Kidney Function Test (KFT)</span>
-              </label>
+              {LAB_ORDERS.map((test) => {
+                const checked = diagnostics[test.key];
+                return (
+                  <label
+                    key={test.key}
+                    className={`flex items-center gap-2.5 p-2 border rounded-sm cursor-pointer ${
+                      checked
+                        ? "bg-[#C62828] text-white border-transparent"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onDiagnosticToggle(test.key)}
+                      className={`w-3.5 h-3.5 ${checked ? "accent-white" : "accent-[#C62828]"}`}
+                    />
+                    <span>{test.label}</span>
+                  </label>
+                );
+              })}
             </div>
             <textarea
               value={diagnostics.additionalInstructions}
