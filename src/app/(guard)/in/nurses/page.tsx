@@ -7,6 +7,7 @@ import PatientBanner from "@src/components/consultation/PatientBanner";
 import VitalTelemetry from "@src/components/consultation/VitalTelemetry";
 import { VitalMetrics, PatientHeaderInfo } from "@src/types/consultation";
 import type { Encounter, EncounterVitals } from "@src/dto/encounter";
+import type { Patient } from "@src/dto/patient";
 import type { DressingOrder } from "@src/dto/lab";
 import { getStaffId, isUuid, requireStaffId } from "@src/utils/staff";
 import encountersService from "@src/services/encounters.service";
@@ -46,6 +47,9 @@ export default function NursesStationPage() {
   const [bpQueue, setBpQueue] = useState<Encounter[]>([]);
   const [emergencyQueue, setEmergencyQueue] = useState<Encounter[]>([]);
   const [openQueue, setOpenQueue] = useState<Encounter[]>([]);
+  const [searchHits, setSearchHits] = useState<Encounter[]>([]);
+  const [patientQuery, setPatientQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedId, setSelectedId] = useState<string>("");
   const [patient, setPatient] = useState<PatientHeaderInfo | null>(null);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
@@ -192,6 +196,57 @@ export default function NursesStationPage() {
     };
   }, [selectedId]);
 
+  const searchPatientEncounters = async () => {
+    const term = patientQuery.trim();
+    if (!term) {
+      toast.error("Enter a patient name or phone number.");
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const [byName, byPhone] = await Promise.all([
+        patientsService.search({ name: term }).catch(() => [] as Patient[]),
+        patientsService.search({ phone: term }).catch(() => [] as Patient[]),
+      ]);
+      const people = new Map<string, Patient>();
+      [...(byName || []), ...(byPhone || [])].forEach((person) => {
+        if (person?.id) people.set(person.id, person);
+      });
+      if (people.size === 0) {
+        setSearchHits([]);
+        toast.info("No matching patient.");
+        return;
+      }
+      const encounters = (await encountersService.list().catch(() => [])) || [];
+      const matches = encounters.filter(
+        (item) => item.patientId && people.has(item.patientId)
+      );
+      const named = matches.map((item) => {
+        const person = item.patientId ? people.get(item.patientId) : undefined;
+        return {
+          ...item,
+          patientName: item.patientName || person?.fullName,
+          fullName: item.fullName || person?.fullName,
+        };
+      });
+      setSearchHits(named);
+      if (named.length === 0) {
+        toast.info("Patient found, but they have no encounter to attach vitals to.");
+        return;
+      }
+      setSelectedId(named[0].id);
+      toast.success(
+        named.length === 1
+          ? "Encounter selected. Record vitals to add another reading."
+          : `${named.length} encounters found. Pick one, then record vitals again.`
+      );
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Unable to search patients"));
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleSaveVitals = async () => {
     if (!selectedId) {
       toast.error("Select an encounter before recording vitals.");
@@ -272,7 +327,14 @@ export default function NursesStationPage() {
 
   const isBpCase = encounter?.status === "BpCheck";
   const isEmergency = encounter ? isEmergencyEncounter(encounter) : false;
+  const listedIds = new Set(
+    [...bpQueue, ...emergencyQueue, ...openQueue].map((item) => item.id)
+  );
   const boardGroups = [
+    {
+      label: "Search results",
+      items: searchHits.filter((item) => !listedIds.has(item.id)),
+    },
     { label: "BP desk (age over 40)", items: bpQueue },
     { label: "Emergency ward", items: emergencyQueue },
     { label: "Open encounters", items: openQueue },
@@ -285,9 +347,33 @@ export default function NursesStationPage() {
         <div>
           <h1 className="text-xl font-bold">Nurses Station</h1>
           <p className="text-xs text-surface-muted">
-            Record vitals here. Add new patients from Protocol in the sidebar.
+            Search a patient to record another set of vitals, or pick an open encounter below.
           </p>
         </div>
+
+        {sections.vitals && (
+          <form
+            className="bg-white border border-surface-border rounded-sm p-3 flex flex-col sm:flex-row gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void searchPatientEncounters();
+            }}
+          >
+            <input
+              value={patientQuery}
+              onChange={(event) => setPatientQuery(event.target.value)}
+              placeholder="Search patient by name or phone"
+              className="flex-1 border border-surface-border rounded-lg px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="px-4 py-2 text-xs font-bold uppercase bg-[#2D3134] text-white rounded-sm disabled:opacity-50"
+            >
+              {isSearching ? "Searching…" : "Find patient"}
+            </button>
+          </form>
+        )}
 
         <div className="bg-white border border-surface-border rounded-sm p-3 space-y-3">
           <h2 className="text-[11px] font-bold uppercase tracking-wide text-surface-muted">

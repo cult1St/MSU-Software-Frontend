@@ -101,6 +101,11 @@ export function canSeeNavItem(
   return canAccessRoute(role, href);
 }
 
+/** Protocol Officer may only call handover (and staff) APIs. Encounters, queue, and lab return 403. */
+export function canReadUnitBoard(role?: string | null): boolean {
+  return normalizeStaffRole(role) !== "ProtocolOfficer";
+}
+
 export function pharmacySections(role?: string | null): {
   dispense: boolean;
   lab: boolean;
