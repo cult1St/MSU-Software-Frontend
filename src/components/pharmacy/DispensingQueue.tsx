@@ -43,6 +43,13 @@ export default function DispensingQueue({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-gray-700">
+            {queue.length === 0 && (
+              <tr>
+                <td colSpan={3} className="p-6 text-center text-xs text-gray-400">
+                  No prescriptions yet. They appear here after a doctor finalizes a consultation with a medication name.
+                </td>
+              </tr>
+            )}
             {queue.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50/40 transition-colors">
                 <td className="p-4 pl-6">
