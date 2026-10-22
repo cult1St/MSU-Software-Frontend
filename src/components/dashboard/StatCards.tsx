@@ -13,7 +13,7 @@ import operationsService from "@src/services/operations.service";
 import pharmacyService from "@src/services/pharmacy.service";
 import labService from "@src/services/lab.service";
 import { useAuth } from "@src/context/auth-context";
-import { normalizeStaffRole } from "@src/utils/roles";
+import { canReadUnitBoard, normalizeStaffRole } from "@src/utils/roles";
 
 function isEmergencyType(value?: string) {
   return String(value || "").toLowerCase().includes("emergency");
@@ -22,8 +22,10 @@ function isEmergencyType(value?: string) {
 export default function StatCards() {
   const { role } = useAuth();
   const apiRole = normalizeStaffRole(role);
-  const canPharmacy = apiRole === "Pharmacist" || apiRole === "ProtocolOfficer";
+  const unitBoard = canReadUnitBoard(role);
+  const canPharmacy = apiRole === "Pharmacist";
   const canLab = apiRole === "Scientist" || apiRole === "Pharmacist";
+  const canHandover = apiRole === "ProtocolOfficer";
 
   const [emergency, setEmergency] = useState("—");
   const [queued, setQueued] = useState("—");
@@ -34,17 +36,26 @@ export default function StatCards() {
     let active = true;
 
     async function load() {
-      const [emergencies, queue, consult, pharmacyPending, prescriptions, labs] =
+      const [emergencies, queue, consult, pharmacyPending, prescriptions, labs, handovers] =
         await Promise.all([
-          encountersService.list({ type: "Emergency" }).catch(() => []),
-          operationsService.getQueue().catch(() => []),
-          encountersService.list({ status: "InConsultation" }).catch(() => []),
-          encountersService.list({ status: "PharmacyPending" }).catch(() => []),
+          unitBoard
+            ? encountersService.list({ type: "Emergency" }).catch(() => [])
+            : Promise.resolve([]),
+          unitBoard ? operationsService.getQueue().catch(() => []) : Promise.resolve([]),
+          unitBoard
+            ? encountersService.list({ status: "InConsultation" }).catch(() => [])
+            : Promise.resolve([]),
+          unitBoard
+            ? encountersService.list({ status: "PharmacyPending" }).catch(() => [])
+            : Promise.resolve([]),
           canPharmacy
             ? pharmacyService.listPrescriptions({ status: "Pending" }).catch(() => [])
             : Promise.resolve([]),
           canLab
             ? labService.listRequests({ status: "Pending" }).catch(() => [])
+            : Promise.resolve([]),
+          canHandover
+            ? pharmacyService.listHandovers("Pending").catch(() => [])
             : Promise.resolve([]),
         ]);
 
@@ -58,7 +69,8 @@ export default function StatCards() {
         String(
           Math.max(
             (pharmacyPending || []).length,
-            (prescriptions || []).length
+            (prescriptions || []).length,
+            (handovers || []).length
           ) + (labs || []).length
         ).padStart(2, "0")
       );
@@ -68,7 +80,7 @@ export default function StatCards() {
     return () => {
       active = false;
     };
-  }, [canPharmacy, canLab]);
+  }, [canPharmacy, canLab, canHandover, unitBoard]);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

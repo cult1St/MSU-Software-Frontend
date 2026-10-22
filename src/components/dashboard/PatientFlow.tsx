@@ -22,6 +22,9 @@ import { cn } from "@src/lib/utils";
 import type { Encounter } from "@src/dto/encounter";
 import encountersService from "@src/services/encounters.service";
 import operationsService from "@src/services/operations.service";
+import pharmacyService from "@src/services/pharmacy.service";
+import { useAuth } from "@src/context/auth-context";
+import { canReadUnitBoard } from "@src/utils/roles";
 
 type FlowRow = {
   id: string;
@@ -32,12 +35,29 @@ type FlowRow = {
 };
 
 export default function PatientFlow() {
+  const { role } = useAuth();
+  const unitBoard = canReadUnitBoard(role);
   const [rows, setRows] = useState<FlowRow[]>([]);
 
   useEffect(() => {
     let active = true;
 
     async function load() {
+      if (!unitBoard) {
+        const handovers = await pharmacyService.listHandovers("Pending").catch(() => []);
+        if (!active) return;
+        setRows(
+          (handovers || []).slice(0, 8).map((item) => ({
+            id: item.id,
+            name: item.patientName || "Patient",
+            type: "COLD" as const,
+            status: item.status || "Handover",
+            time: item.createdAt ? new Date(item.createdAt).toLocaleTimeString() : "—",
+          }))
+        );
+        return;
+      }
+
       const [queue, emergencies, consult, pharmacy] = await Promise.all([
         operationsService.getQueue().catch(() => []),
         encountersService.list({ type: "Emergency" }).catch(() => []),
@@ -100,7 +120,7 @@ export default function PatientFlow() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [unitBoard]);
 
   return (
     <Card>

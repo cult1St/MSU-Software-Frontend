@@ -78,11 +78,20 @@ export default function PharmacyAndLabPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
+      const handoverOnly = sections.handover && !sections.dispense && !sections.lab;
       const [prescriptions, handovers, labs, completedLabs] = await Promise.all([
-        pharmacyService.listPrescriptions({ status: "Pending", date: filterDate || undefined }).catch(() => []),
-        pharmacyService.listHandovers("Pending").catch(() => []),
-        labService.listRequests({ status: "Pending", date: filterDate || undefined }).catch(() => []),
-        labService.listRequests({ status: "Completed", date: filterDate || undefined }).catch(() => []),
+        sections.dispense
+          ? pharmacyService.listPrescriptions({ status: "Pending", date: filterDate || undefined }).catch(() => [])
+          : Promise.resolve([]),
+        sections.handover || handoverOnly
+          ? pharmacyService.listHandovers("Pending").catch(() => [])
+          : Promise.resolve([]),
+        sections.lab
+          ? labService.listRequests({ status: "Pending", date: filterDate || undefined }).catch(() => [])
+          : Promise.resolve([]),
+        sections.lab
+          ? labService.listRequests({ status: "Completed", date: filterDate || undefined }).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setDispenseQueue(mapPrescriptions(prescriptions));
@@ -117,7 +126,7 @@ export default function PharmacyAndLabPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterDate]);
+  }, [filterDate, sections.dispense, sections.handover, sections.lab]);
 
   useEffect(() => {
     void load();
